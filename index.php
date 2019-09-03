@@ -273,7 +273,7 @@ function html_form ($error='')
   </div>
 
   <div class="form-label-group">
-    <input type="text" id="addr" name="addr" class="form-control'.(($error['addr']) ? " is-invalid" : "").'" placeholder="Your fresh grlc address" required autofocus>
+    <input type="text" id="addr" name="addr" class="form-control'.(($error['addr'] OR $error['balance']) ? " is-invalid" : "").'" placeholder="Your fresh grlc address" required autofocus>
     <label for="addr">Your fresh grlc address</label>
     <div class="invalid-feedback">
         This must be a new grlc address that has not been used. Generate a new address in your cold wallet and enter it here.
