@@ -356,11 +356,28 @@ function html_load_pay ($amount, $addr)
 function html_pay_ok ($code)
 {
    global $made_in_grlc;
+
+   /********************************************* 
+
+      If the secret code is the URL, redirect it to the address provided.  
+      for example https://your_domain/pay?code=secret_code 
+
+   *********************************************/
+   
+   if (filter_var($code, FILTER_VALIDATE_URL) !== false)
+   {
+       $code_print = 'Loading...<script>document.location.href="'.$code.'";</script>';
+   }
+    else
+   {
+       $code_print = $code;
+   }
+
    return '<form class="form-pay"><div class="text-center mb-4">'.
           '<div class="text-center mb-4">'.
           '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
           '<h1 class="h3 mb-3 font-weight-normal">Payment completed!</h1>'.
-          '<p>Your secret code: '.$code.'</p>'.
+          '<p>Your secret code: '.$code_print.'</p>'.
           '</div>'. 
           'Thank you very much'.
           '</div>'.
