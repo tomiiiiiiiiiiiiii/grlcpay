@@ -393,7 +393,7 @@ function html_api_code ()
           '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
           '<h1 class="h3 mb-3 font-weight-normal">Grlc payment address API</h1>'.
           '</div>'.
-          '<p>Request GET: '.$domain_name.'?pid=api_get&amp;amount={price}&amp;addr={grlc_address}&amp;emial={your_emial_optional}&amp;code={content_displayed_after_purchase}</p>'.
+          '<p>Request GET: '.$domain_name.'?pid=api_get&amp;amount={price}&amp;addr={grlc_address}&amp;email={your_emial_optional}&amp;code={content_displayed_after_purchase}</p>'.
           '<p><code>response json {link_id => "HASZLINK"} or json {error => 1} if error</code></p>'.
           '</div>'.
           $made_in_grlc.
