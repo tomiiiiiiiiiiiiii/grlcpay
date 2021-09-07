@@ -35,7 +35,7 @@ $encryption_key = "{your_random_password_example_jgsdf78673476dr%Resfcd}";
 $data_dir = "./data"; /* data dir must have permission 777 */
 $debug_mode = false;
 $domain_name = 'index.php'; /* https://domain/path.file where the script will run */
-$link_validity_in_seconds =  3600*24; /* 1 day */
+$link_validity_in_seconds =  3600*24*7; /* 7 day */
 
 /*********************************
 * Mail options 
@@ -286,7 +286,7 @@ function html_form ($error='')
   </div> 
 
   <div class="form-label-group">
-    <input type="number" id="amount" name="amount" class="form-control'.(($error['amount']) ? " is-invalid" : "").'" placeholder="Amount" required autofocus>
+    <input type="number" step="0.01" id="amount" name="amount" class="form-control'.(($error['amount']) ? " is-invalid" : "").'" placeholder="Amount" required autofocus>
     <label for="amount">Amount, price in grlc</label>
     <div class="invalid-feedback">
         This field is required
@@ -525,7 +525,8 @@ switch ($_REQUEST['pid'])
    case "add":
 
     if (!is_dir($data_dir)) {mkdir($data_dir, 0777);}
-
+		
+    $_POST['amount'] = str_replace(",", ".", $_POST['amount']);
     $amount = (preg_match("/^([0-9\.]{1,100})$/i", trim($_POST['amount']))) ? $_POST['amount'] : '';
     $addr = (preg_match("/^([a-zA-Z0-9]{30,100})$/i", trim($_POST['addr']))) ? $_POST['addr'] : '';
     $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
@@ -591,7 +592,7 @@ switch ($_REQUEST['pid'])
     {
         fwrite($f, $encrypt_link);
         fclose($f);
-        $json['link_id'] = $domain_name.'?q='.$uniqid; echo json_encode($json); exit;
+        $json['link_id'] = $domain_name.'?q='.$uniqid; echo str_replace(array("\/"), array("/"), json_encode($json)); exit;
     }
      else
     {
