@@ -14,7 +14,7 @@
 * Mialto: t0mi[:-)]protonmail.com 
 * Website: https://grlc.eu/pay
 * Date: 2019-09-02
-* Version: 1 
+* Version: 1.1 
 * Licencia: Lesser General Public License (LGPL)   
 *
 * This library is free software; you can redistribute it and/or
@@ -452,10 +452,10 @@ function load_var_decrypt ($array_url)
 function explorers_get ($addr)
 {
     /* default explorers */	
-    $url_explorer['0'] = "https://insight.garli.co.in/insight-grlc-api/addr/".$addr."/?noTxList=1";
+    $url_explorer['0'] = "https://explorer.grlc.eu/addr.php?&api=1&op=balance&a=".$addr;
     $url_explorer['1'] = "https://api.freshgrlc.net/blockchain/grlc/address/".$addr."/";
     /* reserve explorer	(uncomment to enable)
-    $url_explorer['0'] = "https://explorer.grlc.eu/addr.php?&api=1&op=balance&a=".$addr;
+    $url_explorer['0'] = "https://insight.garli.co.in/insight-grlc-api/addr/".$addr."/?noTxList=1";
     */
     $explorer['0'] = json_decode(@file_get_contents($url_explorer['0']), 1);
     $explorer['1'] = json_decode(@file_get_contents($url_explorer['1']), 1);
@@ -465,8 +465,8 @@ function explorers_get ($addr)
 function check_addr_balance ($addr, $explorer, $amount=0, $option=1)
 {
     if ($addr == '') {return false;}
-    $check['0'] = $explorer['0']['balance'];
-    $check['1'] = $explorer['1']['balance'];
+    $check['0'] = (float)$explorer['0']['balance'];
+    $check['1'] = (float)$explorer['1']['balance'];
     switch ($option)
     {
       case "1":
