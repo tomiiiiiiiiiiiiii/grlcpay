@@ -6,7 +6,7 @@ It creates one-time payment links tied to a fresh GRLC address. The payment page
 
 ## Requirements
 
-- PHP 7.4+ or PHP 8.x
+- PHP 5.6+ (also compatible with PHP 7.x and PHP 8.x)
 - OpenSSL extension
 - HTTPS strongly recommended
 - A writable, non-public `data/` directory
@@ -28,10 +28,15 @@ GRLCPAY_ENCRYPTION_KEY="replace-with-a-long-random-secret"
 
 The built-in placeholder key is only a fallback for compatibility and must be changed before production use.
 
+## PHP 5.6 compatibility
+
+The current code intentionally avoids PHP 7-only syntax. On PHP 5.6, secure random bytes fall back to OpenSSL and new payment files use the same authenticated v3 format as newer PHP versions.
+
 ## Security notes
 
-- New payment metadata uses authenticated AES-256-GCM encryption.
-- Existing legacy AES-256-CBC payment files remain readable for migration compatibility.
+- New payment metadata uses AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC), chosen so the same payment format works across PHP 5.6, 7.x and 8.x.
+- Interim AES-256-GCM v2 payment files remain readable on PHP 7.1+.
+- Original legacy AES-256-CBC payment files remain readable for migration compatibility.
 - Payment IDs are generated from cryptographically secure random bytes.
 - Payment metadata files are created with private permissions where supported.
 - Concurrent payment checks are locked so the same one-time secret is not released twice.
