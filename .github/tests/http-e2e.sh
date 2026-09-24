@@ -22,10 +22,6 @@ s = s.replace(
     "https://explorer.grlc.eu/addr.php?&api=1&op=balance&a=",
     "http://127.0.0.1:18081/explorer1?address="
 )
-s = s.replace(
-    "https://api.freshgrlc.net/blockchain/grlc/address/",
-    "http://127.0.0.1:18081/explorer2/"
-)
 p.write_text(s)
 PY
 
@@ -52,7 +48,7 @@ done
 
 curl -fsS -X POST     --data-urlencode "pid=add"     --data-urlencode "amount=$AMOUNT"     --data-urlencode "addr=$ADDR"     --data-urlencode "email="     --data-urlencode "code=$SECRET"     "http://127.0.0.1:18080/index.php" > /tmp/grlcpay-created.html
 
-grep -q "Your new grlc payment link" /tmp/grlcpay-created.html
+grep -q "Your new GRLC payment link" /tmp/grlcpay-created.html
 
 LINK=$(grep -oE 'index\.php\?q=[a-f0-9]{32}' /tmp/grlcpay-created.html | head -n1)
 if [ -z "$LINK" ]; then
