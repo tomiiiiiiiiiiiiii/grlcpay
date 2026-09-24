@@ -1,0 +1,95 @@
+name: PHP compatibility
+
+on:
+  push:
+    branches:
+      - modernize-2026-php8-security
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  php-test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php:
+          - "5.6"
+          - "7.4"
+          - "8.4"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: openssl
+          coverage: none
+
+      - name: Show PHP version
+        run: php -v
+
+      - name: Syntax check
+        run: php -l index.php
+
+      - name: Crypto and runtime smoke test
+        shell: bash
+        run: |
+          cat > /tmp/grlcpay-smoke.php <<'PHP'
+          <?php
+          putenv('GRLCPAY_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef');
+          $_GET = array();
+          $_POST = array();
+          $_REQUEST = array();
+          $_SERVER['REQUEST_METHOD'] = 'GET';
+
+          ob_start();
+          require __DIR__ . '/index.php';
+          ob_end_clean();
+
+          $key = '0123456789abcdef0123456789abcdef';
+          $data = 'a=1.25000000&addr=GRLCtestAddress012345678901234567890&mail=&code=hello';
+
+          $encrypted = link_encrypt($data, $key, 60);
+          if (!is_string($encrypted) || strpos($encrypted, 'v3.') !== 0) {
+              fwrite(STDERR, "v3 encryption failed\n");
+              exit(1);
+          }
+
+          $decrypted = link_decrypt($encrypted, $key);
+          if (!is_array($decrypted) || !isset($decrypted['data'], $decrypted['time'])) {
+              fwrite(STDERR, "v3 decryption failed\n");
+              exit(1);
+          }
+
+          if ($decrypted['data'] !== $data || (int)$decrypted['time'] <= time()) {
+              fwrite(STDERR, "round-trip mismatch\n");
+              exit(1);
+          }
+
+          $last = substr($encrypted, -1);
+          $replacement = ($last === 'A') ? 'B' : 'A';
+          $tampered = substr($encrypted, 0, -1) . $replacement;
+          if (link_decrypt($tampered, $key) !== false) {
+              fwrite(STDERR, "tamper detection failed\n");
+              exit(1);
+          }
+
+          $id1 = secure_random_id();
+          $id2 = secure_random_id();
+          if (!is_string($id1) || !preg_match('/^[a-f0-9]{32}$/', $id1) || $id1 === $id2) {
+              fwrite(STDERR, "secure_random_id failed\n");
+              exit(1);
+          }
+
+          echo "OK\n";
+          PHP
+
+          cp /tmp/grlcpay-smoke.php ./grlcpay-smoke.php
+          php grlcpay-smoke.php
+          rm -f grlcpay-smoke.php
