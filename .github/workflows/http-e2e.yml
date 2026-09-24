@@ -1,0 +1,89 @@
+name: HTTP E2E and live explorers
+
+on:
+  push:
+    branches:
+      - modernize-2026-php8-security
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  http-e2e:
+    name: HTTP payment flow / PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php:
+          - "5.6"
+          - "7.4"
+          - "8.4"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: openssl
+          coverage: none
+
+      - name: Run full HTTP payment flow
+        run: bash .github/tests/http-e2e.sh
+
+  live-explorers:
+    name: Live production explorer contract
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: openssl
+          coverage: none
+
+      - name: Query both production explorers through grlcpay
+        shell: bash
+        run: |
+          cat > /tmp/live-explorers.php <<'PHP'
+          <?php
+          putenv('GRLCPAY_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef');
+          $_GET = array();
+          $_POST = array();
+          $_REQUEST = array();
+          $_SERVER['REQUEST_METHOD'] = 'GET';
+
+          ob_start();
+          require getcwd() . '/index.php';
+          ob_end_clean();
+
+          $address = 'MDd48J6uMYqVSLS1bpgfFtesf5z7cR5wnD';
+          $explorers = explorers_get($address);
+
+          echo json_encode($explorers, JSON_PRETTY_PRINT), "\n";
+
+          $valid = 0;
+          foreach (array(0, 1) as $i) {
+              if (isset($explorers[$i]['balance']) && is_numeric($explorers[$i]['balance'])) {
+                  echo "Explorer ", $i + 1, " balance: ", $explorers[$i]['balance'], "\n";
+                  $valid++;
+              } else {
+                  fwrite(STDERR, "Explorer ".($i + 1)." did not return a numeric balance\n");
+              }
+          }
+
+          if ($valid !== 2) {
+              exit(1);
+          }
+
+          echo "LIVE EXPLORERS OK\n";
+          PHP
+
+          php /tmp/live-explorers.php
