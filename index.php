@@ -60,13 +60,8 @@ $link_validity_in_seconds =  3600*24*7; /* 7 day */
 *
 *    next
 *
-*   To enable sending emails from the gmail account.
-*   1. Create new account in google
-*   2. Enable:
-*      1). https://www.google.com/settings/security/lesssecureapps
-*      and
-*      2). https://accounts.google.com/DisplayUnlockCaptcha
-*   
+*   Use credentials/authentication supported by your SMTP provider.
+*   Legacy Gmail "less secure apps" authentication is no longer supported.
 *
 */
 
@@ -292,18 +287,16 @@ function html_header ($title='', $refresh='', $html='')
 function html_footer ($html='')
 {
       if ($html == '')
-      {   
-         return '<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-                 <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
-                 <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
-                 </body>
-                 </html>';
+      {
+         return '</body></html>';
       }
 }
 
-function html_form ($error='') 
+function html_form ($error=array()) 
 {
   global $made_in_grlc;
+  $error = is_array($error) ? $error : array();
+  $error += array('addr' => 0, 'balance' => 0, 'amount' => 0, 'code' => 0);
   return '<form class="form-pay" method="post">
   <div class="text-center mb-4">
     <a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>
@@ -435,43 +428,149 @@ function html_api_code ()
           '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
           '<h1 class="h3 mb-3 font-weight-normal">Grlc payment address API</h1>'.
           '</div>'.
-          '<p>Request GET: '.$domain_name.'?pid=api_get&amp;amount={price}&amp;addr={grlc_address}&amp;email={your_emial_optional}&amp;code={content_displayed_after_purchase}</p>'.
+          '<p>Request GET: '.h($domain_name).'?pid=api_get&amp;amount={price}&amp;addr={grlc_address}&amp;email={your_email_optional}&amp;code={content_displayed_after_purchase}</p>'.
           '<p><code>response json {link_id => "HASZLINK"} or json {error => 1} if error</code></p>'.
           '</div>'.
           $made_in_grlc.
           '</form>';
 }
 
-function link_encrypt ($data, $key, $exp="86400", $crypt="aes-256-cbc")
+function base64url_encode ($data)
 {
-        /* create vector encrypt */
-        $iv = openssl_random_pseudo_bytes(16);
-        $iv2 = openssl_random_pseudo_bytes(16);
-        $iv = substr($iv, 0, 16);
-        $hasz = substr($iv2, 0, 16);
-        /* create maxlife time */
-        $time = time()+$exp;
-        /* encrypt metadata */
-        $data = $time.$data; 
-        $encrypted = openssl_encrypt($data, $crypt, $key, 0, $iv);
-        $encrypted = base64_encode(base64_encode(gzcompress($hasz.$iv.$encrypted, 9)));
-        if ($encrypted != '') {return $encrypted;} else {return false;}
+    return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
 }
 
-function link_decrypt ($data, $key, $crypt="aes-256-cbc")
+function base64url_decode ($data)
 {
-        $encrypted = gzuncompress(base64_decode(base64_decode(urldecode(trim($data)))));
-        /* data encrypt */
-        $parts['0'] = substr($encrypted, 16+16, strlen($encrypted));
-        /* vector encrypt */  
-        $parts['1'] = substr($encrypted, 16+0, 16);
-        /* metadata decrypt */
-        $decrypted = openssl_decrypt($parts[0], $crypt, $key, 0, $parts[1]);
-        /* time decrypt */
-        $array['time'] = substr($decrypted, 0, 10);
-        /* data decrypt */
-        $array['data'] = substr($decrypted, 10, strlen($decrypted));
-        if ($array['data'] != '') {return $array;} else {return false;}
+    if (!is_string($data) || !preg_match('/^[A-Za-z0-9_-]+$/', $data))
+    {
+        return false;
+    }
+
+    $padding = strlen($data) % 4;
+    if ($padding > 0)
+    {
+        $data .= str_repeat('=', 4 - $padding);
+    }
+
+    return base64_decode(strtr($data, '-_', '+/'), true);
+}
+
+function link_encrypt ($data, $key, $exp="86400")
+{
+    if (!function_exists('openssl_encrypt'))
+    {
+        return false;
+    }
+
+    $cipher = 'aes-256-gcm';
+    $iv = random_bytes(12);
+    $tag = '';
+    $derived_key = hash('sha256', (string)$key, true);
+    $payload = json_encode(array(
+        'time' => time() + (int)$exp,
+        'data' => (string)$data
+    ));
+
+    if ($payload === false)
+    {
+        return false;
+    }
+
+    $encrypted = openssl_encrypt(
+        $payload,
+        $cipher,
+        $derived_key,
+        OPENSSL_RAW_DATA,
+        $iv,
+        $tag,
+        'grlcpay:v2',
+        16
+    );
+
+    if ($encrypted === false || strlen($tag) !== 16)
+    {
+        return false;
+    }
+
+    return 'v2.'.base64url_encode($iv.$tag.$encrypted);
+}
+
+function link_decrypt_legacy ($data, $key, $crypt="aes-256-cbc")
+{
+    $outer = base64_decode(trim((string)$data), true);
+    if ($outer === false) { return false; }
+
+    $inner = base64_decode($outer, true);
+    if ($inner === false) { return false; }
+
+    $encrypted = @gzuncompress($inner);
+    if ($encrypted === false || strlen($encrypted) <= 32) { return false; }
+
+    $ciphertext = substr($encrypted, 32);
+    $iv = substr($encrypted, 16, 16);
+    $decrypted = openssl_decrypt($ciphertext, $crypt, $key, 0, $iv);
+
+    if (!is_string($decrypted) || strlen($decrypted) <= 10) { return false; }
+
+    $time = substr($decrypted, 0, 10);
+    $plain = substr($decrypted, 10);
+
+    if (!ctype_digit($time) || $plain === '') { return false; }
+
+    return array('time' => $time, 'data' => $plain);
+}
+
+function link_decrypt ($data, $key)
+{
+    $data = trim((string)$data);
+
+    if (strpos($data, 'v2.') !== 0)
+    {
+        return link_decrypt_legacy($data, $key);
+    }
+
+    $blob = base64url_decode(substr($data, 3));
+    if ($blob === false || strlen($blob) <= 28)
+    {
+        return false;
+    }
+
+    $iv = substr($blob, 0, 12);
+    $tag = substr($blob, 12, 16);
+    $ciphertext = substr($blob, 28);
+    $derived_key = hash('sha256', (string)$key, true);
+
+    $payload = openssl_decrypt(
+        $ciphertext,
+        'aes-256-gcm',
+        $derived_key,
+        OPENSSL_RAW_DATA,
+        $iv,
+        $tag,
+        'grlcpay:v2'
+    );
+
+    if ($payload === false)
+    {
+        return false;
+    }
+
+    $decoded = json_decode($payload, true);
+    if (!is_array($decoded) || !isset($decoded['time'], $decoded['data']))
+    {
+        return false;
+    }
+
+    if (!is_numeric($decoded['time']) || !is_string($decoded['data']) || $decoded['data'] === '')
+    {
+        return false;
+    }
+
+    return array(
+        'time' => (int)$decoded['time'],
+        'data' => $decoded['data']
+    );
 }
 
 function load_var_decrypt ($array_url)
@@ -536,7 +635,20 @@ function check_addr_balance ($addr, $explorer, $amount=0, $option=1)
        return ((($check['0'] !== null && $check['0'] >= $amount) OR ($check['1'] !== null && $check['1'] >= $amount)) AND $amount > 0) ? true : false;
       break;
       case "2":
-       return (($check['0'] !== null && $check['0'] == $amount) OR ($check['1'] !== null && $check['1'] == $amount)) ? true : false;
+       $valid = array();
+       foreach ($check as $balance)
+       {
+           if ($balance !== null) { $valid[] = $balance; }
+       }
+
+       if (count($valid) === 0) { return false; }
+
+       foreach ($valid as $balance)
+       {
+           if (abs($balance - (float)$amount) > 0.000000001) { return false; }
+       }
+
+       return true;
       break;
       default: return false;
     }    
@@ -582,7 +694,9 @@ function pear_mail ($subject, $body, $to, $from, $host, $port, $auth, $user, $pa
 
 ************************************/
 
-$pid = (isset($_REQUEST['pid']) && is_string($_REQUEST['pid'])) ? $_REQUEST['pid'] : '';
+$pid = '';
+if (isset($_POST['pid']) && is_string($_POST['pid'])) { $pid = $_POST['pid']; }
+elseif (isset($_GET['pid']) && is_string($_GET['pid'])) { $pid = $_GET['pid']; }
 
 switch ($pid)
 {
@@ -620,8 +734,14 @@ switch ($pid)
 
     if ($f = fopen($data_dir."/".$uniqid, 'xb'))
     {
-        fwrite($f, $encrypt_link);
+        $bytes_written = fwrite($f, $encrypt_link);
         fclose($f);
+        @chmod($data_dir."/".$uniqid, 0600);
+        if ($bytes_written === false || $bytes_written !== strlen($encrypt_link))
+        {
+            @unlink($data_dir."/".$uniqid);
+            html_error('Unable to write complete payment metadata.');
+        }
         echo html_header('Payment link created');
         echo html_load_link($domain_name.'?q='.$uniqid);
         echo html_footer(); 
@@ -668,8 +788,14 @@ switch ($pid)
 
     if ($f = fopen($data_dir."/".$uniqid, 'xb'))
     {
-        fwrite($f, $encrypt_link);
+        $bytes_written = fwrite($f, $encrypt_link);
         fclose($f);
+        @chmod($data_dir."/".$uniqid, 0600);
+        if ($bytes_written === false || $bytes_written !== strlen($encrypt_link))
+        {
+            @unlink($data_dir."/".$uniqid);
+            $json['error'] = 'payment_metadata_write_failed'; echo json_encode($json); exit;
+        }
         $json['link_id'] = $domain_name.'?q='.$uniqid; echo str_replace(array("\/"), array("/"), json_encode($json)); exit;
     }
      else
@@ -691,11 +817,31 @@ switch ($pid)
         exit;
     }
 
-    $encrypted_payload = file_get_contents($payment_file);
+    $payment_handle = @fopen($payment_file, 'rb');
+    if ($payment_handle === false || !flock($payment_handle, LOCK_EX))
+    {
+        if (is_resource($payment_handle)) { fclose($payment_handle); }
+        echo html_header('Payment temporarily unavailable').html_load_error('Unable to lock payment data. Please retry.').html_footer();
+        exit;
+    }
+
+    /* A second request may have opened the file before the first one consumed it.
+       Re-check the pathname after acquiring the lock to preserve one-time delivery. */
+    if (!is_file($payment_file))
+    {
+        flock($payment_handle, LOCK_UN);
+        fclose($payment_handle);
+        echo html_header('Payment link not found').html_load_error('Payment link not found or already used.').html_footer();
+        exit;
+    }
+
+    $encrypted_payload = stream_get_contents($payment_handle);
     $decrypt_link = ($encrypted_payload !== false) ? link_decrypt(trim($encrypted_payload), $encryption_key) : false;
 
     if (!is_array($decrypt_link) || !isset($decrypt_link['time'], $decrypt_link['data']))
     {
+        flock($payment_handle, LOCK_UN);
+        fclose($payment_handle);
         echo html_header('Invalid payment link').html_load_error('Invalid payment link.').html_footer();
         exit;
     }
@@ -704,6 +850,8 @@ switch ($pid)
 
     if (!isset($get_var['addr'], $get_var['a'], $get_var['code'], $get_var['mail']))
     {
+        flock($payment_handle, LOCK_UN);
+        fclose($payment_handle);
         echo html_header('Invalid payment link').html_load_error('Invalid payment metadata.').html_footer();
         exit;
     }
@@ -713,6 +861,10 @@ switch ($pid)
         $explorer = explorers_get($get_var['addr']);
         if (check_addr_balance($get_var['addr'], $explorer, $get_var['a']))
         {
+            @unlink($payment_file);
+            flock($payment_handle, LOCK_UN);
+            fclose($payment_handle);
+
             echo html_header('Payment confirmed!');
             echo html_pay_ok($get_var['code']);
             if ($enable_mail)
@@ -723,16 +875,20 @@ switch ($pid)
                     pear_mail ('Payment confirmed!', "Hello\r\nNew payment has been received to the address: ".$get_var['addr']."\r\nAmount: ".$get_var['a']."\r\nGreetings", $get_var['mail'], $your_mail_name, $host_smtp, $port_smtp, $auth, $user, $pass);
                 }
             }
-            @unlink($payment_file);
         }
          else
         {
+            flock($payment_handle, LOCK_UN);
+            fclose($payment_handle);
             echo html_header('Waiting for payment...', '<meta http-equiv="refresh" content="40">');
             echo html_load_pay($get_var['a'], $get_var['addr']);
         }
     }
      else
     {
+        @unlink($payment_file);
+        flock($payment_handle, LOCK_UN);
+        fclose($payment_handle);
         echo html_header('The link has expired :-(');
         echo html_load_error('The link has expired :-(');
     }
