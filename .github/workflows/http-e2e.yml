@@ -69,51 +69,15 @@ jobs:
 
           echo json_encode($explorers, JSON_PRETTY_PRINT), "\n";
 
-          $valid = 0;
-          foreach (array(0, 1) as $i) {
-              if (isset($explorers[$i]['balance']) && is_numeric($explorers[$i]['balance'])) {
-                  echo "Explorer ", $i + 1, " balance: ", $explorers[$i]['balance'], "\n";
-                  $valid++;
-              } else {
-                  fwrite(STDERR, "Explorer ".($i + 1)." did not return a numeric balance\n");
-              }
-          }
-
-          if ($valid !== 2) {
+          if (!isset($explorers[0]['balance']) || !is_numeric($explorers[0]['balance'])) {
+              fwrite(STDERR, "Production explorer did not return a numeric balance\n");
               exit(1);
           }
 
-          echo "LIVE EXPLORERS OK\n";
+          echo "Production explorer balance: ", $explorers[0]['balance'], "\n";
+          echo "LIVE EXPLORER OK\n";
           PHP
 
           php /tmp/live-explorers.php
 
 
-  explorer-candidates:
-    name: Probe fallback explorer candidates
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Probe candidate endpoints
-        shell: bash
-        run: |
-          set +e
-          address="MDd48J6uMYqVSLS1bpgfFtesf5z7cR5wnD"
-          urls=(
-            "https://insight.garli.co.in/insight-grlc-api/addr/$address/?noTxList=1"
-            "https://garli.co.in/insight-grlc-api/addr/$address/?noTxList=1"
-          )
-          n=0
-          for url in "${urls[@]}"; do
-            n=$((n+1))
-            echo "=== CANDIDATE $n ==="
-            echo "$url"
-            curl -L --max-time 15 -sS -D "/tmp/h$n" -o "/tmp/b$n" "$url"
-            rc=$?
-            echo "curl_rc=$rc"
-            echo "--- headers ---"
-            sed -n '1,20p' "/tmp/h$n"
-            echo "--- body ---"
-            head -c 2000 "/tmp/b$n"
-            echo
-          done
