@@ -30,11 +30,17 @@
  Config start
 ************************************/
 
-/* !!! set random secret password for encrypted links !!! */
-$default_encryption_key = "{your_random_password_example_jgsdf78673476dr%Resfcd}";
-$env_encryption_key = getenv("GRLCPAY_ENCRYPTION_KEY");
-$encryption_key = ($env_encryption_key !== false && strlen($env_encryption_key) >= 32) ? $env_encryption_key : $default_encryption_key;
-$encryption_key_is_default = hash_equals($default_encryption_key, $encryption_key);
+/* Private encryption key lives in config.php, which is not committed to Git. */
+$config_file = __DIR__ . '/config.php';
+$encryption_key = '';
+
+if (is_file($config_file))
+{
+    require $config_file;
+}
+
+$encryption_key = (isset($encryption_key) && is_string($encryption_key)) ? trim($encryption_key) : '';
+$encryption_key_is_configured = (strlen($encryption_key) >= 32);
 
 $data_dir = "./data"; /* keep this directory non-public and writable by the PHP user */
 $debug_mode = false;
@@ -1394,7 +1400,7 @@ switch ($pid)
 
    case "add":
 
-    if ($encryption_key_is_default) {html_error('Configuration error: set GRLCPAY_ENCRYPTION_KEY to a private random value of at least 32 characters before creating payments.');}
+    if (!$encryption_key_is_configured) {html_error('Configuration error: copy config.example.php to config.php and set $encryption_key to a private random value of at least 32 characters.');}
 
     if (!ensure_data_dir($data_dir)) {html_error('Data directory is not writable.');}
 
@@ -1451,7 +1457,7 @@ switch ($pid)
 
     header('Content-Type: application/json; charset=utf-8');
 
-    if ($encryption_key_is_default)
+    if (!$encryption_key_is_configured)
     {
         http_response_code(500);
         echo json_encode(array('error' => 'encryption_key_not_configured'));
@@ -1509,6 +1515,8 @@ switch ($pid)
    break;
 
    case "load":
+
+    if (!$encryption_key_is_configured) {html_error('Configuration error: copy config.example.php to config.php and set $encryption_key to a private random value of at least 32 characters.');}
 
     $load_id = (isset($_GET['id']) && is_string($_GET['id'])) ? $_GET['id'] : '';
     $encrypt_link = (preg_match("/^[a-z0-9]{32}$/i", $load_id)) ? $load_id : '';
