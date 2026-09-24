@@ -2,7 +2,7 @@
 
 A small, database-free Garlicoin (GRLC) web payment handler written in PHP.
 
-It creates one-time payment links tied to a fresh GRLC address. The payment page checks supported GRLC explorers for the address balance and releases the configured access code after payment is detected.
+It creates one-time payment links tied to a fresh GRLC address. The payment page checks the configured GRLC explorer for the address balance and releases the configured access code after payment is detected.
 
 ## Requirements
 
@@ -40,11 +40,11 @@ The current code intentionally avoids PHP 7-only syntax. On PHP 5.6, secure rand
 - Payment IDs are generated from cryptographically secure random bytes.
 - Payment metadata files are created with private permissions where supported.
 - Concurrent payment checks are locked so the same one-time secret is not released twice.
-- A fresh address is accepted only when all explorers that returned a valid balance agree on the expected empty balance.
+- A fresh address is accepted only when the configured explorer reports the expected empty balance.
 - Input and HTML output are validated/escaped.
 - The `data/` directory must not be publicly readable.
 - Use HTTPS.
-- Explorer availability is external to this project; payment verification depends on configured explorers responding with valid balance data.
+- Explorer availability is external to this project; payment verification depends on the configured explorer returning valid balance data.
 
 
 ## API
@@ -61,6 +61,10 @@ code=CONTENT_OR_HTTPS_URL_RELEASED_AFTER_PAYMENT
 ```
 
 The legacy `pid=api_get` GET endpoint remains available for compatibility, but it is not recommended for secrets because query strings can be stored in browser history, proxies and web-server access logs.
+
+## Continuous integration
+
+GitHub Actions checks PHP 5.6, 7.4 and 8.4, runs the full HTTP payment flow, and verifies the live production explorer contract.
 
 ## Email
 
