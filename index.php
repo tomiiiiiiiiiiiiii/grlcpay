@@ -11,11 +11,12 @@
 * Demo https://grlc.eu/pay
 *
 * Written by: tomiiiii
-* Mialto: t0mi[:-)]protonmail.com 
+* Contact: t0mi[:-)]protonmail.com
 * Website: https://grlc.eu/pay
-* Date: 2019-09-02
-* Version: 1.2 
-* Licencia: Lesser General Public License (LGPL)   
+* Original date: 2019-09-02
+* Updated: 2026-09-24
+* Version: 2.0
+* License: Lesser General Public License (LGPL)   
 *
 * This library is free software; you can redistribute it and/or
 * modify it under the terms of the GNU Lesser General Public
@@ -41,40 +42,24 @@ $domain_name = 'index.php'; /* https://domain/path.file where the script will ru
 $link_validity_in_seconds =  3600*24*7; /* 7 day */
 
 /*********************************
-* Mail options 
+* Mail options
 *
-*   This solution is based on the pear mail class
-*   To send emails
-*   You must install pear mail
-*   
+* Optional email notifications use PEAR Mail.
+* Install the Mail, Net_SMTP and Auth_SASL packages required by
+* your SMTP provider before enabling this feature.
 *
-*   install php-pear
-*   pear install Mail
-*   1. pear upgrade --force --alldeps http://pear.php.net/get/PEAR-1.10.1
-*   2. pear clear-cache
-*   3. pear update-channels
-*   4. pear upgrade
-*   5. pear upgrade-all
-*   6. pear install Auth_SASL
-*   7. pear install pear/Net_SMTP
-*   8. check install https://pear.php.net/manual/en/installation.checking.php
-*
-*    next
-*
-*   Use credentials/authentication supported by your SMTP provider.
-*   Legacy Gmail "less secure apps" authentication is no longer supported.
-*
-*/
+* Use credentials and authentication supported by your provider.
+*********************************/
 
 /* Turn email sending on or off */
 
 $enable_mail = false; /* true = on | false = off | default = false */
-$your_mail_name = ''; /* your email name example: user@gmail.com */
+$your_mail_name = ''; /* sender email address */
 $host_smtp = 'ssl://smtp.gmail.com'; 
 $port_smtp = '465'; 
 $auth_smtp = true;
-$user = ''; /* login to gmail */
-$pass = ''; /* password to gmail */
+$user = ''; /* SMTP username */
+$pass = ''; /* SMTP password */
 
 /************************************
 * mail options end
@@ -893,7 +878,7 @@ function html_load_link ($link)
 
      <div class="hero">
        <div class="status success"><span class="status-dot"></span>Ready</div>
-       <h1>Your new grlc payment link</h1>
+       <h1>Your new GRLC payment link</h1>
        <p class="lead">Share this link with the buyer. The link remains valid until it is paid, used or expires.</p>
      </div>
 
@@ -1275,7 +1260,7 @@ function load_var_decrypt ($array_url)
     if (trim($array_url) != '')
     {
         $array_url = explode("&", $array_url);
-        if (@count($array_url) > 0) 
+        if (count($array_url) > 0) 
         {
             foreach($array_url as $v_crypt)
             {
@@ -1289,7 +1274,7 @@ function load_var_decrypt ($array_url)
 
 function explorers_get ($addr)
 {
-    /* default explorers */
+    /* configured explorer endpoints */
     $url_explorer = array(
         "https://explorer.grlc.eu/addr.php?&api=1&op=balance&a=".rawurlencode($addr)
     );
@@ -1320,34 +1305,46 @@ function explorers_get ($addr)
 
 function check_addr_balance ($addr, $explorer, $amount=0, $option=1)
 {
-    if ($addr == '') {return false;}
-    $check['0'] = (isset($explorer['0']['balance']) && is_numeric($explorer['0']['balance'])) ? (float)$explorer['0']['balance'] : null;
-    $check['1'] = (isset($explorer['1']['balance']) && is_numeric($explorer['1']['balance'])) ? (float)$explorer['1']['balance'] : null;
+    if ($addr == '' || !is_array($explorer)) {return false;}
+
+    $balances = array();
+
+    foreach ($explorer as $response)
+    {
+        if (is_array($response) && isset($response['balance']) && is_numeric($response['balance']))
+        {
+            $balances[] = (float)$response['balance'];
+        }
+    }
+
+    if (count($balances) === 0) {return false;}
+
     switch ($option)
     {
       case "1":
-       return ((($check['0'] !== null && $check['0'] >= $amount) OR ($check['1'] !== null && $check['1'] >= $amount)) AND $amount > 0) ? true : false;
-      break;
-      case "2":
-       $valid = array();
-       foreach ($check as $balance)
+       if ((float)$amount <= 0) {return false;}
+
+       foreach ($balances as $balance)
        {
-           if ($balance !== null) { $valid[] = $balance; }
+           if ($balance >= (float)$amount) {return true;}
        }
 
-       if (count($valid) === 0) { return false; }
+       return false;
+      break;
 
-       foreach ($valid as $balance)
+      case "2":
+       foreach ($balances as $balance)
        {
-           if (abs($balance - (float)$amount) > 0.000000001) { return false; }
+           if (abs($balance - (float)$amount) > 0.000000001) {return false;}
        }
 
        return true;
       break;
-      default: return false;
-    }    
-}
 
+      default:
+       return false;
+    }
+}
 function pear_mail ($subject, $body, $to, $from, $host, $port, $auth, $user, $pass)
 {
     require_once "Mail.php";
@@ -1358,7 +1355,7 @@ function pear_mail ($subject, $body, $to, $from, $host, $port, $auth, $user, $pa
     $smtp = Mail::factory('smtp', array(
         'host' => $host,
         'port' => $port,
-        'auth' => true,
+        'auth' => (bool)$auth,
         'username' => $user,
         'password' => $pass
     ));
