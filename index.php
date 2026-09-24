@@ -674,8 +674,7 @@ function explorers_get ($addr)
 {
     /* default explorers */
     $url_explorer = array(
-        "https://explorer.grlc.eu/addr.php?&api=1&op=balance&a=".rawurlencode($addr),
-        "https://api.freshgrlc.net/blockchain/grlc/address/".rawurlencode($addr)."/"
+        "https://explorer.grlc.eu/addr.php?&api=1&op=balance&a=".rawurlencode($addr)
     );
 
     $context = stream_context_create(array(
