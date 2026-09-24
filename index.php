@@ -206,7 +206,8 @@ function secure_random_id ()
 {
     if (function_exists('random_bytes'))
     {
-        return bin2hex(random_bytes(16));
+        try { return bin2hex(random_bytes(16)); }
+        catch (Throwable $e) { return false; }
     }
 
     $bytes = openssl_random_pseudo_bytes(16, $strong);
@@ -465,7 +466,8 @@ function link_encrypt ($data, $key, $exp="86400")
     }
 
     $cipher = 'aes-256-gcm';
-    $iv = random_bytes(12);
+    try { $iv = random_bytes(12); }
+    catch (Throwable $e) { return false; }
     $tag = '';
     $derived_key = hash('sha256', (string)$key, true);
     $payload = json_encode(array(
@@ -820,7 +822,7 @@ switch ($pid)
         exit;
     }
 
-    $payment_handle = @fopen($payment_file, 'rb');
+    $payment_handle = @fopen($payment_file, 'r+b');
     if ($payment_handle === false || !flock($payment_handle, LOCK_EX))
     {
         if (is_resource($payment_handle)) { fclose($payment_handle); }
