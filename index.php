@@ -4,7 +4,7 @@
 *
 * This is a simple script to handle web payments in grlc
 * Does not require sql database
-* PHP 7.4+ / PHP 8.x + optional PEAR Mail
+* PHP 5.6+ / PHP 7.x / PHP 8.x + optional PEAR Mail
 *
 * Payment metadata is encrypted at rest. Keep the encryption key private.
 * Generating payments is only possible when using a cold wallet address.
@@ -202,23 +202,45 @@ function h ($value)
     return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
-function secure_random_id ()
+function secure_random_bytes ($length)
 {
+    $length = (int)$length;
+    if ($length < 1) { return false; }
+
     if (function_exists('random_bytes'))
     {
-        try { return bin2hex(random_bytes(16)); }
-        catch (Throwable $e) { return false; }
+        try
+        {
+            return random_bytes($length);
+        }
+        catch (Exception $e)
+        {
+            /* Fall through to OpenSSL for PHP versions/environments where
+               random_bytes() is unavailable at runtime. */
+        }
     }
 
-    $bytes = openssl_random_pseudo_bytes(16, $strong);
-    if ($bytes === false || !$strong)
+    if (!function_exists('openssl_random_pseudo_bytes'))
     {
         return false;
     }
 
-    return bin2hex($bytes);
+    $strong = false;
+    $bytes = openssl_random_pseudo_bytes($length, $strong);
+
+    if ($bytes === false || !$strong || strlen($bytes) !== $length)
+    {
+        return false;
+    }
+
+    return $bytes;
 }
 
+function secure_random_id ()
+{
+    $bytes = secure_random_bytes(16);
+    return ($bytes !== false) ? bin2hex($bytes) : false;
+}
 function ensure_data_dir ($data_dir)
 {
     if (!is_dir($data_dir))
@@ -461,43 +483,131 @@ function base64url_decode ($data)
 
 function link_encrypt ($data, $key, $exp="86400")
 {
-    if (!function_exists('openssl_encrypt'))
+    if (!function_exists('openssl_encrypt') || !function_exists('hash_hmac'))
     {
         return false;
     }
 
-    $cipher = 'aes-256-gcm';
-    try { $iv = random_bytes(12); }
-    catch (Throwable $e) { return false; }
-    $tag = '';
-    $derived_key = hash('sha256', (string)$key, true);
+    /* v3 is deliberately based on AES-256-CBC + HMAC-SHA256 so newly
+       created payment files remain portable across PHP 5.6, 7.x and 8.x.
+       Authentication is encrypt-then-MAC. */
+    $iv = secure_random_bytes(16);
+    if ($iv === false) { return false; }
+
     $payload = json_encode(array(
         'time' => time() + (int)$exp,
         'data' => (string)$data
     ));
+    if ($payload === false) { return false; }
 
-    if ($payload === false)
+    $key_material = hash('sha512', (string)$key, true);
+    $enc_key = substr($key_material, 0, 32);
+    $mac_key = substr($key_material, 32, 32);
+
+    $ciphertext = openssl_encrypt(
+        $payload,
+        'aes-256-cbc',
+        $enc_key,
+        OPENSSL_RAW_DATA,
+        $iv
+    );
+    if ($ciphertext === false) { return false; }
+
+    $version = "grlcpay:v3";
+    $mac = hash_hmac('sha256', $version.$iv.$ciphertext, $mac_key, true);
+
+    return 'v3.'.base64url_encode($iv.$mac.$ciphertext);
+}
+
+function link_decrypt_v3 ($data, $key)
+{
+    $blob = base64url_decode(substr($data, 3));
+    if ($blob === false || strlen($blob) <= 48)
     {
         return false;
     }
 
-    $encrypted = openssl_encrypt(
-        $payload,
-        $cipher,
+    $iv = substr($blob, 0, 16);
+    $mac = substr($blob, 16, 32);
+    $ciphertext = substr($blob, 48);
+
+    $key_material = hash('sha512', (string)$key, true);
+    $enc_key = substr($key_material, 0, 32);
+    $mac_key = substr($key_material, 32, 32);
+
+    $expected_mac = hash_hmac('sha256', "grlcpay:v3".$iv.$ciphertext, $mac_key, true);
+    if (!hash_equals($expected_mac, $mac))
+    {
+        return false;
+    }
+
+    $payload = openssl_decrypt(
+        $ciphertext,
+        'aes-256-cbc',
+        $enc_key,
+        OPENSSL_RAW_DATA,
+        $iv
+    );
+    if ($payload === false) { return false; }
+
+    $decoded = json_decode($payload, true);
+    if (!is_array($decoded) || !isset($decoded['time'], $decoded['data']))
+    {
+        return false;
+    }
+
+    if (!is_numeric($decoded['time']) || !is_string($decoded['data']) || $decoded['data'] === '')
+    {
+        return false;
+    }
+
+    return array('time' => (int)$decoded['time'], 'data' => $decoded['data']);
+}
+
+function link_decrypt_v2_gcm ($data, $key)
+{
+    /* GCM tag parameters were added to PHP's OpenSSL API in PHP 7.1.
+       Keep this reader only to preserve links created by the interim v2 code. */
+    if (PHP_VERSION_ID < 70100)
+    {
+        return false;
+    }
+
+    $blob = base64url_decode(substr($data, 3));
+    if ($blob === false || strlen($blob) <= 28)
+    {
+        return false;
+    }
+
+    $iv = substr($blob, 0, 12);
+    $tag = substr($blob, 12, 16);
+    $ciphertext = substr($blob, 28);
+    $derived_key = hash('sha256', (string)$key, true);
+
+    $payload = openssl_decrypt(
+        $ciphertext,
+        'aes-256-gcm',
         $derived_key,
         OPENSSL_RAW_DATA,
         $iv,
         $tag,
-        'grlcpay:v2',
-        16
+        'grlcpay:v2'
     );
 
-    if ($encrypted === false || strlen($tag) !== 16)
+    if ($payload === false) { return false; }
+
+    $decoded = json_decode($payload, true);
+    if (!is_array($decoded) || !isset($decoded['time'], $decoded['data']))
     {
         return false;
     }
 
-    return 'v2.'.base64url_encode($iv.$tag.$encrypted);
+    if (!is_numeric($decoded['time']) || !is_string($decoded['data']) || $decoded['data'] === '')
+    {
+        return false;
+    }
+
+    return array('time' => (int)$decoded['time'], 'data' => $decoded['data']);
 }
 
 function link_decrypt_legacy ($data, $key, $crypt="aes-256-cbc")
@@ -529,54 +639,18 @@ function link_decrypt ($data, $key)
 {
     $data = trim((string)$data);
 
-    if (strpos($data, 'v2.') !== 0)
+    if (strpos($data, 'v3.') === 0)
     {
-        return link_decrypt_legacy($data, $key);
+        return link_decrypt_v3($data, $key);
     }
 
-    $blob = base64url_decode(substr($data, 3));
-    if ($blob === false || strlen($blob) <= 28)
+    if (strpos($data, 'v2.') === 0)
     {
-        return false;
+        return link_decrypt_v2_gcm($data, $key);
     }
 
-    $iv = substr($blob, 0, 12);
-    $tag = substr($blob, 12, 16);
-    $ciphertext = substr($blob, 28);
-    $derived_key = hash('sha256', (string)$key, true);
-
-    $payload = openssl_decrypt(
-        $ciphertext,
-        'aes-256-gcm',
-        $derived_key,
-        OPENSSL_RAW_DATA,
-        $iv,
-        $tag,
-        'grlcpay:v2'
-    );
-
-    if ($payload === false)
-    {
-        return false;
-    }
-
-    $decoded = json_decode($payload, true);
-    if (!is_array($decoded) || !isset($decoded['time'], $decoded['data']))
-    {
-        return false;
-    }
-
-    if (!is_numeric($decoded['time']) || !is_string($decoded['data']) || $decoded['data'] === '')
-    {
-        return false;
-    }
-
-    return array(
-        'time' => (int)$decoded['time'],
-        'data' => $decoded['data']
-    );
+    return link_decrypt_legacy($data, $key);
 }
-
 function load_var_decrypt ($array_url)
 {
     $C_GET = array();
