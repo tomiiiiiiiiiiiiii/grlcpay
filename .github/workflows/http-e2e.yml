@@ -87,3 +87,33 @@ jobs:
           PHP
 
           php /tmp/live-explorers.php
+
+
+  explorer-candidates:
+    name: Probe fallback explorer candidates
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Probe candidate endpoints
+        shell: bash
+        run: |
+          set +e
+          address="MDd48J6uMYqVSLS1bpgfFtesf5z7cR5wnD"
+          urls=(
+            "https://insight.garli.co.in/insight-grlc-api/addr/$address/?noTxList=1"
+            "https://garli.co.in/insight-grlc-api/addr/$address/?noTxList=1"
+          )
+          n=0
+          for url in "${urls[@]}"; do
+            n=$((n+1))
+            echo "=== CANDIDATE $n ==="
+            echo "$url"
+            curl -L --max-time 15 -sS -D "/tmp/h$n" -o "/tmp/b$n" "$url"
+            rc=$?
+            echo "curl_rc=$rc"
+            echo "--- headers ---"
+            sed -n '1,20p' "/tmp/h$n"
+            echo "--- body ---"
+            head -c 2000 "/tmp/b$n"
+            echo
+          done
