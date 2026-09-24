@@ -80,121 +80,411 @@ $pass = ''; /* password to gmail */
 * mail options end
 *************************************/
 
-$made_in_grlc = '<p class="mt-5 mb-3 text-muted text-center">2018-'.date("Y").' made in love of <a href="https://grlc.eu/pay">garlic</a> / <a href="?pid=api_code">API GET</a> <br> <a href="https://grlc.eu/pay/grlcpay.zip">Download script</a></p>';
+$made_in_grlc = '<footer class="site-footer">'.
+                '<span>GRLC Pay</span>'.
+                '<span class="footer-dot">·</span>'.
+                '<a href="?pid=api_code">API</a>'.
+                '<span class="footer-dot">·</span>'.
+                '<a href="https://github.com/tomiiiiiiiiiiiiii/grlcpay" target="_blank" rel="noopener">GitHub</a>'.
+                '<span class="footer-year">2018-'.date("Y").'</span>'.
+                '</footer>';
 
 /************************************
  Config end
 ************************************/
 
 /* start style css */
-define("STYLE_CSS",' 
-
+define("STYLE_CSS",'
 <style>
-html,
-body {
-  height: 100%;
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: #f6f7f3;
 }
 
 body {
-  display: -ms-flexbox;
+  min-height: 100vh;
+  margin: 0;
+  padding: 32px 16px;
   display: flex;
-  -ms-flex-align: center;
   align-items: center;
-  padding-top: 40px;
-  padding-bottom: 40px;
-  background-color: #f5f5f5;
+  justify-content: center;
+  background:
+    radial-gradient(circle at top, rgba(123, 150, 74, 0.10), transparent 34rem),
+    #f6f7f3;
+  color: #1c2119;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-.form-pay {
+a {
+  color: #526d2b;
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+.app-shell {
   width: 100%;
-  max-width: 420px;
-  padding: 15px;
+  max-width: 560px;
   margin: auto;
 }
 
-.form-label-group {
-  position: relative;
-  margin-bottom: 1rem;
-}
-
-.form-label-group > input,
-.form-label-group > label {
-  height: 3.125rem;
-  padding: .75rem;
-}
-
-.form-label-group > label {
-  position: absolute;
-  top: 0;
-  left: 0;
-  display: block;
+.card {
   width: 100%;
-  margin-bottom: 0; /* Override default `<label>` margin */
-  line-height: 1.5;
-  color: #495057;
-  pointer-events: none;
-  cursor: text; /* Match the input under the label */
-  border: 1px solid transparent;
-  border-radius: .25rem;
-  transition: all .1s ease-in-out;
+  padding: 32px;
+  background: rgba(255,255,255,0.96);
+  border: 1px solid #e7e9e2;
+  border-radius: 22px;
+  box-shadow: 0 20px 60px rgba(27, 36, 20, 0.08);
 }
 
-.form-label-group input::-webkit-input-placeholder {
-  color: transparent;
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 28px;
 }
 
-.form-label-group input:-ms-input-placeholder {
-  color: transparent;
+.brand-logo {
+  width: 48px;
+  height: 48px;
+  display: block;
+  border-radius: 14px;
 }
 
-.form-label-group input::-ms-input-placeholder {
-  color: transparent;
+.brand-copy {
+  min-width: 0;
 }
 
-.form-label-group input::-moz-placeholder {
-  color: transparent;
+.brand-name {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.1;
+  font-weight: 750;
+  letter-spacing: -0.02em;
 }
 
-.form-label-group input::placeholder {
-  color: transparent;
+.brand-subtitle {
+  margin: 4px 0 0;
+  color: #777d71;
+  font-size: 13px;
 }
 
-.form-label-group input:not(:placeholder-shown) {
-  padding-top: 1.25rem;
-  padding-bottom: .25rem;
+.hero {
+  margin-bottom: 26px;
 }
 
-.form-label-group input:not(:placeholder-shown) ~ label {
-  padding-top: .25rem;
-  padding-bottom: .25rem;
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  color: #5e733a;
   font-size: 12px;
-  color: #777;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-/* Fallback for Edge
--------------------------------------------------- */
-@supports (-ms-ime-align: auto) {
-  .form-label-group > label {
-    display: none;
-  }
-  .form-label-group input::-ms-input-placeholder {
-    color: #777;
-  }
+.eyebrow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #7c9a4d;
+  box-shadow: 0 0 0 5px rgba(124,154,77,0.11);
 }
 
-/* Fallback for IE
--------------------------------------------------- */
-@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) {
-  .form-label-group > label {
-    display: none;
+h1 {
+  margin: 0;
+  color: #171b15;
+  font-size: 30px;
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.lead {
+  margin: 12px 0 0;
+  color: #6e7469;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 7px;
+  color: #343a30;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.form-hint {
+  margin: 6px 0 0;
+  color: #8a9084;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.input,
+.textarea {
+  width: 100%;
+  border: 1px solid #d9ddd3;
+  border-radius: 12px;
+  background: #fbfcfa;
+  color: #1c2119;
+  font: inherit;
+  outline: none;
+  transition: border-color .15s ease, box-shadow .15s ease, background .15s ease;
+}
+
+.input {
+  height: 48px;
+  padding: 0 14px;
+}
+
+.textarea {
+  min-height: 82px;
+  padding: 12px 14px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.input:focus,
+.textarea:focus {
+  border-color: #819b59;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(129,155,89,.14);
+}
+
+.input.invalid {
+  border-color: #c75d55;
+  background: #fffafa;
+}
+
+.error-text {
+  margin: 7px 0 0;
+  color: #a74740;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.button {
+  width: 100%;
+  height: 50px;
+  margin-top: 4px;
+  border: 0;
+  border-radius: 13px;
+  background: #5f7d34;
+  color: #ffffff;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 750;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(95,125,52,.22);
+  transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.button:hover {
+  background: #536f2e;
+  box-shadow: 0 10px 26px rgba(95,125,52,.27);
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.status.waiting {
+  background: #fff7dc;
+  color: #816515;
+}
+
+.status.success {
+  background: #e9f6e5;
+  color: #3f6e31;
+}
+
+.status.error {
+  background: #fdebea;
+  color: #994942;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.qr-wrap {
+  display: flex;
+  justify-content: center;
+  margin: 24px 0;
+}
+
+.qr {
+  width: min(220px, 70vw);
+  height: auto;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e4e7df;
+  border-radius: 18px;
+}
+
+.data-box {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #e4e7df;
+  border-radius: 14px;
+  background: #f8faf6;
+}
+
+.data-label {
+  margin: 0 0 7px;
+  color: #777d71;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.data-value {
+  margin: 0;
+  color: #1e241b;
+  font-size: 15px;
+  font-weight: 750;
+  word-break: break-word;
+}
+
+.copy-field {
+  margin-top: 18px;
+}
+
+.copy-field .textarea {
+  cursor: pointer;
+}
+
+.copy-note {
+  margin: 7px 0 0;
+  color: #8a9084;
+  font-size: 12px;
+}
+
+.divider {
+  height: 1px;
+  margin: 24px 0;
+  background: #eceee9;
+}
+
+.notice {
+  padding: 14px 15px;
+  border-radius: 13px;
+  background: #f7f8f4;
+  color: #676d62;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.secret {
+  margin: 22px 0 8px;
+  padding: 18px;
+  border: 1px solid #dfe7d7;
+  border-radius: 14px;
+  background: #f4f8f0;
+  color: #27361f;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.back-link {
+  display: inline-block;
+  margin-top: 22px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.code-block {
+  margin-top: 18px;
+  padding: 14px 15px;
+  overflow-x: auto;
+  border: 1px solid #e1e4dc;
+  border-radius: 13px;
+  background: #20241d;
+  color: #eef3e9;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-top: 18px;
+  color: #8b9185;
+  font-size: 12px;
+}
+
+.site-footer a {
+  color: #68735c;
+}
+
+.footer-dot {
+  opacity: .45;
+}
+
+.footer-year {
+  width: 100%;
+  margin-top: 1px;
+  text-align: center;
+  opacity: .72;
+}
+
+@media (max-width: 620px) {
+  body {
+    padding: 18px 12px;
+    align-items: flex-start;
   }
-  .form-label-group input:-ms-input-placeholder {
-    color: #777;
+
+  .card {
+    padding: 24px 20px;
+    border-radius: 18px;
+  }
+
+  h1 {
+    font-size: 27px;
+  }
+
+  .brand {
+    margin-bottom: 24px;
   }
 }
 </style>
-
-'); 
+');
 /* end style css */
 
 function h ($value)
@@ -289,21 +579,31 @@ function html_error ($error)
 function html_header ($title='', $refresh='', $html='')
 {
       if ($html == '')
-      {   
-
+      {
          return '<!doctype html>
                  <html lang="en">
                  <head>
                  <meta charset="utf-8">
                  '.$refresh.'
-                 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-                 <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+                 <meta name="viewport" content="width=device-width, initial-scale=1">
+                 <meta name="theme-color" content="#f6f7f3">
                  '.STYLE_CSS.'
                  <title>'.h($title).'</title>
                  <link rel="apple-touch-icon" sizes="180x180" href="https://grlc.eu/garlicoin.png">
-	         <link rel="icon" type="image/png" sizes="32x32" href="https://grlc.eu/garlicoin.png">
-	         <link rel="icon" type="image/png" sizes="16x16" href="https://grlc.eu/garlicoin.png">
-                 <script>function copyText(a){document.getElementById(a).onclick = function() {this.select();document.execCommand(\'copy\');}}</script>
+                 <link rel="icon" type="image/png" sizes="32x32" href="https://grlc.eu/garlicoin.png">
+                 <link rel="icon" type="image/png" sizes="16x16" href="https://grlc.eu/garlicoin.png">
+                 <script>
+                 function copyText(id){
+                   var el=document.getElementById(id);
+                   if(!el){return;}
+                   el.select();
+                   if(navigator.clipboard && window.isSecureContext){
+                     navigator.clipboard.writeText(el.value);
+                   } else {
+                     document.execCommand("copy");
+                   }
+                 }
+                 </script>
                  </head><body>';
       }
 }
@@ -316,148 +616,244 @@ function html_footer ($html='')
       }
 }
 
-function html_form ($error=array()) 
+function html_form ($error=array())
 {
   global $made_in_grlc;
   $error = is_array($error) ? $error : array();
   $error += array('addr' => 0, 'balance' => 0, 'amount' => 0, 'code' => 0);
-  return '<form class="form-pay" method="post">
-  <div class="text-center mb-4">
-    <a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>
-    <h1 class="h3 mb-3 font-weight-normal">Generating grlc web payments</h1>
-    <p>Create payment. After payment, the user automatically receives the access code to your service.</p>
-  </div>
 
-  <div class="form-label-group">
-    <input type="text" id="addr" name="addr" class="form-control'.(($error['addr'] OR $error['balance']) ? " is-invalid" : "").'" placeholder="Your fresh grlc address" required autofocus>
-    <label for="addr">Your fresh grlc address</label>
-    <div class="invalid-feedback">
-        This must be a new grlc address that has not been used. Generate a new address in your cold wallet and enter it here.
+  $addr_error = ($error['addr'] OR $error['balance']) ? true : false;
+  $amount_error = $error['amount'] ? true : false;
+  $code_error = $error['code'] ? true : false;
+
+  return '<main class="app-shell">
+  <section class="card">
+    <div class="brand">
+      <a href="?start"><img class="brand-logo" src="https://grlc.eu/garlicoin.png" alt="Garlicoin"></a>
+      <div class="brand-copy">
+        <p class="brand-name">GRLC Pay</p>
+        <p class="brand-subtitle">Simple Garlicoin payments</p>
+      </div>
     </div>
-  </div>
 
-  <div class="form-label-group">
-    <input type="email" id="inputEmail" name="email" class="form-control" placeholder="Your email optional" autofocus>
-    <label for="inputEmail">Your email optional</label>
-  </div> 
-
-  <div class="form-label-group">
-    <input type="number" step="0.00000001" min="0.00000001" id="amount" name="amount" class="form-control'.(($error['amount']) ? " is-invalid" : "").'" placeholder="Amount" required autofocus>
-    <label for="amount">Amount, price in grlc</label>
-    <div class="invalid-feedback">
-        This field is required
+    <div class="hero">
+      <div class="eyebrow"><span class="eyebrow-dot"></span>Create payment</div>
+      <h1>Generate a payment link</h1>
+      <p class="lead">Create a one-time GRLC payment page. When the payment arrives, the buyer automatically receives your access code or URL.</p>
     </div>
-  </div>
 
-  <div class="form-label-group">
-    <input type="text" id="code" name="code" class="form-control'.(($error['code']) ? " is-invalid" : "").'" placeholder="Access code, displayed after purchase" required autofocus>
-    <div class="invalid-feedback">
-        This field is required
-    </div>
-    <label for="code">Access code or etc, displayed after purchase</label>
-  </div> 
-  <input type="hidden" name="pid" value="add" />
-  <button class="btn btn-lg btn-primary btn-block" type="submit">Generate Link &#x2192</button>
+    <form method="post" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="addr">Fresh GRLC address</label>
+        <input class="input'.($addr_error ? ' invalid' : '').'" type="text" id="addr" name="addr" placeholder="Enter a new unused address" required autofocus>
+        '.($addr_error ? '<p class="error-text">Use a new, valid GRLC address with a zero balance.</p>' : '<p class="form-hint">Generate a new address in your wallet. It must not have been used before.</p>').'
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="inputEmail">Email <span style="font-weight:500;color:#959b90">(optional)</span></label>
+        <input class="input" type="email" id="inputEmail" name="email" placeholder="you@example.com">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="amount">Amount in GRLC</label>
+        <input class="input'.($amount_error ? ' invalid' : '').'" type="number" step="0.00000001" min="0.00000001" id="amount" name="amount" placeholder="1.00000000" required>
+        '.($amount_error ? '<p class="error-text">Enter an amount greater than zero.</p>' : '').'
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="code">Content released after payment</label>
+        <input class="input'.($code_error ? ' invalid' : '').'" type="text" id="code" name="code" placeholder="Access code or https://..." required>
+        '.($code_error ? '<p class="error-text">Enter an access code or URL.</p>' : '<p class="form-hint">A HTTPS URL will redirect automatically after payment.</p>').'
+      </div>
+
+      <input type="hidden" name="pid" value="add">
+      <button class="button" type="submit">Generate payment link</button>
+    </form>
+  </section>
   '.$made_in_grlc.'
-  </form>';
+  </main>';
 }
 
 function html_load_link ($link)
 {
    global $made_in_grlc, $domain_name;
-   return '<form class="form-pay"><div class="text-center mb-4">'.
-          '<div class="text-center mb-4">'.
-          '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
-          '<h1 class="h3 mb-3 font-weight-normal">Your new grlc payment link</h1>'.
-          '<p></p>'.
-          '</div>'. 
-          '<img class="mb-4" src="https://grlc.eu/qr.php?code='.rawurlencode($link).'" alt=""><br><textarea onclick="copyText(\'link\')" id="link" class="form-control">'.h($link).'</textarea>'.
-          '<p><a href="'.h($domain_name).'">Go back</a></p>'.
-          '</div>'.
-          $made_in_grlc.
-          '</form>';
+
+   return '<main class="app-shell">
+   <section class="card">
+     <div class="brand">
+       <a href="?start"><img class="brand-logo" src="https://grlc.eu/garlicoin.png" alt="Garlicoin"></a>
+       <div class="brand-copy">
+         <p class="brand-name">GRLC Pay</p>
+         <p class="brand-subtitle">Payment link created</p>
+       </div>
+     </div>
+
+     <div class="hero">
+       <div class="status success"><span class="status-dot"></span>Ready</div>
+       <h1>Your new grlc payment link</h1>
+       <p class="lead">Share this link with the buyer. The link remains valid until it is paid, used or expires.</p>
+     </div>
+
+     <div class="qr-wrap">
+       <img class="qr" src="https://grlc.eu/qr.php?code='.rawurlencode($link).'" alt="Payment link QR code">
+     </div>
+
+     <div class="copy-field">
+       <label class="form-label" for="link">Payment link</label>
+       <textarea class="textarea" onclick="copyText(\'link\')" id="link" readonly>'.h($link).'</textarea>
+       <p class="copy-note">Tap the field to copy.</p>
+     </div>
+
+     <a class="back-link" href="'.h($domain_name).'">← Create another payment</a>
+   </section>
+   '.$made_in_grlc.'
+   </main>';
 }
 
 function html_load_error ($html)
 {
    global $domain_name, $made_in_grlc;
-   return '<form class="form-pay"><div class="text-center mb-4">'.
-          '<div class="text-center mb-4">'.
-          '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
-          '<h1 class="h3 mb-3 font-weight-normal">'.h($html).'</h1>'.
-          '<p><a href="'.h($domain_name).'">Go back</a></p>'.
-          '</div>'. 
-          '</div>'.
-          $made_in_grlc.
-          '</form>';
+
+   return '<main class="app-shell">
+   <section class="card">
+     <div class="brand">
+       <a href="?start"><img class="brand-logo" src="https://grlc.eu/garlicoin.png" alt="Garlicoin"></a>
+       <div class="brand-copy">
+         <p class="brand-name">GRLC Pay</p>
+         <p class="brand-subtitle">Payment unavailable</p>
+       </div>
+     </div>
+
+     <div class="status error"><span class="status-dot"></span>Unavailable</div>
+     <div class="hero">
+       <h1>'.h($html).'</h1>
+       <p class="lead">The payment link may be invalid, expired or already used.</p>
+     </div>
+
+     <a class="back-link" href="'.h($domain_name).'">← Back to GRLC Pay</a>
+   </section>
+   '.$made_in_grlc.'
+   </main>';
 }
 
 function html_load_pay ($amount, $addr)
 {
    global $made_in_grlc;
-   return '<form class="form-pay"><div class="text-center mb-4">'.
-          '<div class="text-center mb-4">'.
-          '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
-          '<h1 class="h3 mb-3 font-weight-normal">Grlc payment address</h1>'.
-          '</div>'. 
-          '<img class="mb-4" src="https://grlc.eu/qr.php?code='.rawurlencode($addr).'" alt=""><br><textarea onclick="copyText(\'link\')" id="link" class="form-control">'.h($addr).'</textarea>'.
-          '<p>Payment amount: '.h($amount).' GRLC</p>'.
-          '<p>Status: waiting for payment</p>'.
-          '<p><code>Do not close this page until payment is confirmed!</code></p>'.
-          '</div>'.
-          $made_in_grlc.
-          '</form>';
+
+   return '<main class="app-shell">
+   <section class="card">
+     <div class="brand">
+       <a href="?start"><img class="brand-logo" src="https://grlc.eu/garlicoin.png" alt="Garlicoin"></a>
+       <div class="brand-copy">
+         <p class="brand-name">GRLC Pay</p>
+         <p class="brand-subtitle">Secure one-time payment</p>
+       </div>
+     </div>
+
+     <div class="status waiting"><span class="status-dot"></span>Status: waiting for payment</div>
+
+     <div class="hero">
+       <h1>Send '.h($amount).' GRLC</h1>
+       <p class="lead">Send the exact amount to the address below. This page checks the blockchain automatically.</p>
+     </div>
+
+     <div class="qr-wrap">
+       <img class="qr" src="https://grlc.eu/qr.php?code='.rawurlencode($addr).'" alt="GRLC address QR code">
+     </div>
+
+     <div class="data-box">
+       <p class="data-label">Amount</p>
+       <p class="data-value">'.h($amount).' GRLC</p>
+     </div>
+
+     <div class="copy-field">
+       <label class="form-label" for="link">Payment address</label>
+       <textarea class="textarea" onclick="copyText(\'link\')" id="link" readonly>'.h($addr).'</textarea>
+       <p class="copy-note">Tap the field to copy. Payment status refreshes automatically.</p>
+     </div>
+
+     <div class="divider"></div>
+     <div class="notice">Keep this page open until the payment is confirmed. The secret is released only after the required balance is detected.</div>
+   </section>
+   '.$made_in_grlc.'
+   </main>';
 }
 
 function html_pay_ok ($code)
 {
    global $made_in_grlc;
 
-   /********************************************* 
-
-      If the secret code is the URL, redirect it to the address provided.  
-      for example https://your_domain/pay?code=secret_code 
-
-   *********************************************/
-   
    $validated_url = filter_var($code, FILTER_VALIDATE_URL);
    $scheme = ($validated_url !== false) ? strtolower((string)parse_url($code, PHP_URL_SCHEME)) : '';
 
    if ($validated_url !== false && in_array($scheme, array('http', 'https'), true))
    {
-       $code_print = 'Loading...<script>window.location.href='.json_encode($code, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT).';</script>';
+       $code_print = 'Redirecting...<script>window.location.href='.json_encode($code, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT).';</script>';
    }
-    else
+   else
    {
        $code_print = h($code);
    }
 
-   return '<form class="form-pay"><div class="text-center mb-4">'.
-          '<div class="text-center mb-4">'.
-          '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
-          '<h1 class="h3 mb-3 font-weight-normal">Payment completed!</h1>'.
-          '<p>Your secret code: '.$code_print.'</p>'.
-          '</div>'. 
-          'Thank you very much'.
-          '</div>'.
-          $made_in_grlc.
-          '</form>';
+   return '<main class="app-shell">
+   <section class="card">
+     <div class="brand">
+       <a href="?start"><img class="brand-logo" src="https://grlc.eu/garlicoin.png" alt="Garlicoin"></a>
+       <div class="brand-copy">
+         <p class="brand-name">GRLC Pay</p>
+         <p class="brand-subtitle">Payment confirmed</p>
+       </div>
+     </div>
+
+     <div class="status success"><span class="status-dot"></span>Paid</div>
+
+     <div class="hero">
+       <h1>Payment completed!</h1>
+       <p class="lead">The payment has been confirmed. Your protected content is available below.</p>
+     </div>
+
+     <div class="secret">'.$code_print.'</div>
+     <p class="form-hint">This payment link is one-time use and is now consumed.</p>
+   </section>
+   '.$made_in_grlc.'
+   </main>';
 }
 
 function html_api_code ()
 {
    global $made_in_grlc, $domain_name;
-   return '<form class="form-pay"><div class="text-center mb-4">'.
-          '<div class="text-center mb-4">'.
-          '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
-          '<h1 class="h3 mb-3 font-weight-normal">Grlc payment address API</h1>'.
-          '</div>'.
-          '<p>Recommended API: POST to '.h($domain_name).' with pid=api_create and fields amount, addr, email and code in the request body.</p>'.
-          '<p>Legacy GET pid=api_get remains available for backward compatibility; avoid putting secrets in URLs.</p>'.
-          '<p><code>response json {link_id => "HASHLINK"} or {error => ...}</code></p>'.
-          '</div>'.
-          $made_in_grlc.
-          '</form>';
+
+   return '<main class="app-shell">
+   <section class="card">
+     <div class="brand">
+       <a href="?start"><img class="brand-logo" src="https://grlc.eu/garlicoin.png" alt="Garlicoin"></a>
+       <div class="brand-copy">
+         <p class="brand-name">GRLC Pay</p>
+         <p class="brand-subtitle">Developer API</p>
+       </div>
+     </div>
+
+     <div class="hero">
+       <div class="eyebrow"><span class="eyebrow-dot"></span>API</div>
+       <h1>Create payments programmatically</h1>
+       <p class="lead">Use POST for new integrations so protected content is sent in the request body instead of the URL.</p>
+     </div>
+
+     <div class="code-block">POST '.h($domain_name).'
+pid=api_create
+amount=1.25
+addr=YOUR_FRESH_GRLC_ADDRESS
+email=optional@example.com
+code=CONTENT_OR_HTTPS_URL</div>
+
+     <div class="notice" style="margin-top:18px">Legacy <strong>pid=api_get</strong> remains available for compatibility, but GET query strings may be stored in browser, proxy or server logs.</div>
+
+     <div class="code-block">{ "link_id": "index.php?q=..." }</div>
+
+     <a class="back-link" href="'.h($domain_name).'">← Back to GRLC Pay</a>
+   </section>
+   '.$made_in_grlc.'
+   </main>';
 }
 
 function base64url_encode ($data)
