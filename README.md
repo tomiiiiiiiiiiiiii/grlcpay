@@ -1,10 +1,75 @@
 # grlcpay
-Web payments in grlc
 
-This is a simple script to handle web payments in grlc.
-Does not require sql database.
-Requirements: Web hosting with php5 or php7 or php8 + optional pear mail
+A small, database-free Garlicoin (GRLC) web payment handler written in PHP.
 
-Everything is encrypted aes-256-cbc algorithm like in a bank.
-Generating payments is only possible when using a cold wallet address.
-Demo https://grlc.eu/pay
+It creates one-time payment links tied to a fresh GRLC address. The payment page checks supported GRLC explorers for the address balance and releases the configured access code after payment is detected.
+
+## Requirements
+
+- PHP 5.6+ (also compatible with PHP 7.x and PHP 8.x)
+- OpenSSL extension
+- HTTPS strongly recommended
+- A writable, non-public `data/` directory
+- Optional: PEAR Mail if email notifications are enabled
+
+## Installation
+
+1. Copy `index.php` and the `data/` directory to your web server.
+2. Keep `data/` blocked from direct web access. The included `.htaccess` does this on Apache.
+3. Make `data/` writable by the PHP/web-server user. Do **not** use world-writable `0777` permissions unless your hosting environment leaves no safer option.
+4. Configure `$domain_name`.
+5. Set a long, random encryption key. New payment creation is refused while the public placeholder key is still configured.
+
+The recommended way to provide the encryption key is through the environment:
+
+```
+GRLCPAY_ENCRYPTION_KEY="replace-with-a-long-random-secret"
+```
+
+The built-in placeholder key is only a fallback for compatibility and must be changed before production use.
+
+## PHP 5.6 compatibility
+
+The current code intentionally avoids PHP 7-only syntax. On PHP 5.6, secure random bytes fall back to OpenSSL and new payment files use the same authenticated v3 format as newer PHP versions.
+
+## Security notes
+
+- New payment metadata uses AES-256-CBC with HMAC-SHA256 (encrypt-then-MAC), chosen so the same payment format works across PHP 5.6, 7.x and 8.x.
+- Interim AES-256-GCM v2 payment files remain readable on PHP 7.1+.
+- Original legacy AES-256-CBC payment files remain readable for migration compatibility.
+- Payment IDs are generated from cryptographically secure random bytes.
+- Payment metadata files are created with private permissions where supported.
+- Concurrent payment checks are locked so the same one-time secret is not released twice.
+- A fresh address is accepted only when all explorers that returned a valid balance agree on the expected empty balance.
+- Input and HTML output are validated/escaped.
+- The `data/` directory must not be publicly readable.
+- Use HTTPS.
+- Explorer availability is external to this project; payment verification depends on configured explorers responding with valid balance data.
+
+
+## API
+
+For new integrations, use a POST request so the access code is carried in the request body rather than the URL:
+
+```
+POST index.php
+pid=api_create
+amount=1.25
+addr=YOUR_FRESH_GRLC_ADDRESS
+email=optional@example.com
+code=CONTENT_OR_HTTPS_URL_RELEASED_AFTER_PAYMENT
+```
+
+The legacy `pid=api_get` GET endpoint remains available for compatibility, but it is not recommended for secrets because query strings can be stored in browser history, proxies and web-server access logs.
+
+## Email
+
+Email notifications remain optional. The legacy Gmail "less secure apps" workflow is no longer recommended. If mail is enabled, use an SMTP provider and authentication method supported by your current mail service.
+
+## Demo
+
+https://grlc.eu/pay
+
+## License
+
+LGPL, as included in `LICENSE`.
