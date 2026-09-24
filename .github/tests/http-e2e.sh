@@ -64,6 +64,8 @@ fi
 
 curl -fsSL "http://127.0.0.1:18080/$LINK" > /tmp/grlcpay-waiting.html
 grep -q "Status: waiting for payment" /tmp/grlcpay-waiting.html
+grep -q "Payment link expires" /tmp/grlcpay-waiting.html
+grep -q "expiry-countdown" /tmp/grlcpay-waiting.html
 grep -q "pid=status" /tmp/grlcpay-waiting.html
 if grep -qi 'http-equiv="refresh"' /tmp/grlcpay-waiting.html; then
     echo "Meta refresh still present" >&2
@@ -78,6 +80,8 @@ ID="${LINK##*q=}"
 
 curl -fsS "http://127.0.0.1:18080/index.php?pid=status&id=$ID" > /tmp/grlcpay-status-waiting.json
 grep -q '"status":"waiting"' /tmp/grlcpay-status-waiting.json
+grep -Eq '"expires_at":[0-9]+' /tmp/grlcpay-status-waiting.json
+grep -Eq '"remaining_seconds":[0-9]+' /tmp/grlcpay-status-waiting.json
 if grep -q "$SECRET" /tmp/grlcpay-status-waiting.json; then
     echo "Secret leaked from status endpoint before payment" >&2
     exit 1
