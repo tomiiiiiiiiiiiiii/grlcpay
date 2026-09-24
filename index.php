@@ -4,9 +4,9 @@
 *
 * This is a simple script to handle web payments in grlc
 * Does not require sql database
-* only php5 + optional pear mail
+* PHP 7.4+ / PHP 8.x + optional PEAR Mail
 *
-* Everything is encrypted aes-256-cbc algorithm like in a bank
+* Payment metadata is encrypted at rest. Keep the encryption key private.
 * Generating payments is only possible when using a cold wallet address.
 * Demo https://grlc.eu/pay
 *
@@ -14,7 +14,7 @@
 * Mialto: t0mi[:-)]protonmail.com 
 * Website: https://grlc.eu/pay
 * Date: 2019-09-02
-* Version: 1.1 
+* Version: 1.2 
 * Licencia: Lesser General Public License (LGPL)   
 *
 * This library is free software; you can redistribute it and/or
@@ -30,9 +30,11 @@
 ************************************/
 
 /* !!! set random secret password for encrypted links !!! */
-$encryption_key = "{your_random_password_example_jgsdf78673476dr%Resfcd}"; 
+$default_encryption_key = "{your_random_password_example_jgsdf78673476dr%Resfcd}";
+$env_encryption_key = getenv("GRLCPAY_ENCRYPTION_KEY");
+$encryption_key = ($env_encryption_key !== false && strlen($env_encryption_key) >= 32) ? $env_encryption_key : $default_encryption_key;
 
-$data_dir = "./data"; /* data dir must have permission 777 */
+$data_dir = "./data"; /* keep this directory non-public and writable by the PHP user */
 $debug_mode = false;
 $domain_name = 'index.php'; /* https://domain/path.file where the script will run */
 $link_validity_in_seconds =  3600*24*7; /* 7 day */
@@ -199,6 +201,40 @@ body {
 '); 
 /* end style css */
 
+function h ($value)
+{
+    return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+function secure_random_id ()
+{
+    if (function_exists('random_bytes'))
+    {
+        return bin2hex(random_bytes(16));
+    }
+
+    $bytes = openssl_random_pseudo_bytes(16, $strong);
+    if ($bytes === false || !$strong)
+    {
+        return false;
+    }
+
+    return bin2hex($bytes);
+}
+
+function ensure_data_dir ($data_dir)
+{
+    if (!is_dir($data_dir))
+    {
+        if (!mkdir($data_dir, 0700, true) && !is_dir($data_dir))
+        {
+            return false;
+        }
+    }
+
+    return is_writable($data_dir);
+}
+
 if ($debug_mode)
 {
     ini_set('display_errors', 1);
@@ -206,15 +242,18 @@ if ($debug_mode)
     error_reporting(E_ALL);
 }
 
-if (preg_match("/^[a-z0-9]{32}$/i", $_GET['q']))
+$q = (isset($_GET['q']) && is_string($_GET['q'])) ? $_GET['q'] : '';
+if (preg_match("/^[a-z0-9]{32}$/i", $q))
 {
-    header("Location: ?pid=load&id=".$_GET['q']);exit;
+    header("Location: ?pid=load&id=".$q);
+    exit;
 }
 
-header("Cache-Control: no-cache, must-revalidate");
-header("Pragma: no-cache"); 
-header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
-header("Cache-Control: max-age=2592000");
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: 0");
+header("X-Content-Type-Options: nosniff");
+header("Referrer-Policy: no-referrer");
 
 /************************************
 
@@ -241,7 +280,7 @@ function html_header ($title='', $refresh='', $html='')
                  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
                  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
                  '.STYLE_CSS.'
-                 <title>'.$title.'</title>
+                 <title>'.h($title).'</title>
                  <link rel="apple-touch-icon" sizes="180x180" href="https://grlc.eu/garlicoin.png">
 	         <link rel="icon" type="image/png" sizes="32x32" href="https://grlc.eu/garlicoin.png">
 	         <link rel="icon" type="image/png" sizes="16x16" href="https://grlc.eu/garlicoin.png">
@@ -286,7 +325,7 @@ function html_form ($error='')
   </div> 
 
   <div class="form-label-group">
-    <input type="number" step="0.01" id="amount" name="amount" class="form-control'.(($error['amount']) ? " is-invalid" : "").'" placeholder="Amount" required autofocus>
+    <input type="number" step="0.00000001" min="0.00000001" id="amount" name="amount" class="form-control'.(($error['amount']) ? " is-invalid" : "").'" placeholder="Amount" required autofocus>
     <label for="amount">Amount, price in grlc</label>
     <div class="invalid-feedback">
         This field is required
@@ -308,15 +347,15 @@ function html_form ($error='')
 
 function html_load_link ($link)
 {
-   global $made_in_grlc;
+   global $made_in_grlc, $domain_name;
    return '<form class="form-pay"><div class="text-center mb-4">'.
           '<div class="text-center mb-4">'.
           '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
           '<h1 class="h3 mb-3 font-weight-normal">Your new grlc payment link</h1>'.
           '<p></p>'.
           '</div>'. 
-          '<img class="mb-4" src="https://grlc.eu/qr.php?code='.$link.'" alt=""><br><textarea type="text" onclick="copyText(\'link\')" id="link" class="form-control">'.$link.'</textarea>'.
-          '<p><a href="'.$domain_name.'">Go back</a></p>'.
+          '<img class="mb-4" src="https://grlc.eu/qr.php?code='.rawurlencode($link).'" alt=""><br><textarea onclick="copyText(\'link\')" id="link" class="form-control">'.h($link).'</textarea>'.
+          '<p><a href="'.h($domain_name).'">Go back</a></p>'.
           '</div>'.
           $made_in_grlc.
           '</form>';
@@ -328,8 +367,8 @@ function html_load_error ($html)
    return '<form class="form-pay"><div class="text-center mb-4">'.
           '<div class="text-center mb-4">'.
           '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
-          '<h1 class="h3 mb-3 font-weight-normal">'.$html.'</h1>'.
-          '<p><a href="'.$domain_name.'">Go back</a></p>'.
+          '<h1 class="h3 mb-3 font-weight-normal">'.h($html).'</h1>'.
+          '<p><a href="'.h($domain_name).'">Go back</a></p>'.
           '</div>'. 
           '</div>'.
           $made_in_grlc.
@@ -344,8 +383,8 @@ function html_load_pay ($amount, $addr)
           '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
           '<h1 class="h3 mb-3 font-weight-normal">Grlc payment address</h1>'.
           '</div>'. 
-          '<img class="mb-4" src="https://grlc.eu/qr.php?code='.$addr.'" alt=""><br><textarea type="text" onclick="copyText(\'link\')" id="link" class="form-control">'.$addr.'</textarea>'.
-          '<p>Payment amount: '.$amount.' GRLC</p>'.
+          '<img class="mb-4" src="https://grlc.eu/qr.php?code='.rawurlencode($addr).'" alt=""><br><textarea onclick="copyText(\'link\')" id="link" class="form-control">'.h($addr).'</textarea>'.
+          '<p>Payment amount: '.h($amount).' GRLC</p>'.
           '<p>Status: waiting for payment</p>'.
           '<p><code>Do not close this page until payment is confirmed!</code></p>'.
           '</div>'.
@@ -364,13 +403,16 @@ function html_pay_ok ($code)
 
    *********************************************/
    
-   if (filter_var($code, FILTER_VALIDATE_URL) !== false)
+   $validated_url = filter_var($code, FILTER_VALIDATE_URL);
+   $scheme = ($validated_url !== false) ? strtolower((string)parse_url($code, PHP_URL_SCHEME)) : '';
+
+   if ($validated_url !== false && in_array($scheme, array('http', 'https'), true))
    {
-       $code_print = 'Loading...<script>document.location.href="'.$code.'";</script>';
+       $code_print = 'Loading...<script>window.location.href='.json_encode($code, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT).';</script>';
    }
     else
    {
-       $code_print = $code;
+       $code_print = h($code);
    }
 
    return '<form class="form-pay"><div class="text-center mb-4">'.
@@ -434,6 +476,8 @@ function link_decrypt ($data, $key, $crypt="aes-256-cbc")
 
 function load_var_decrypt ($array_url)
 {
+    $C_GET = array();
+
     if (trim($array_url) != '')
     {
         $array_url = explode("&", $array_url);
@@ -441,9 +485,9 @@ function load_var_decrypt ($array_url)
         {
             foreach($array_url as $v_crypt)
             {
-               $get_v = @explode("=", $v_crypt);
-               if (trim($get_v[0]) == '') {continue;} 
-               $C_GET[$get_v[0]] = trim($get_v[1]); 
+               $get_v = explode("=", $v_crypt, 2);
+               if (trim($get_v[0]) == '') {continue;}
+               $C_GET[$get_v[0]] = isset($get_v[1]) ? urldecode(trim($get_v[1])) : ''; 
             }
         }
     } return $C_GET;
@@ -451,29 +495,48 @@ function load_var_decrypt ($array_url)
 
 function explorers_get ($addr)
 {
-    /* default explorers */	
-    $url_explorer['0'] = "https://explorer.grlc.eu/addr.php?&api=1&op=balance&a=".$addr;
-    $url_explorer['1'] = "https://api.freshgrlc.net/blockchain/grlc/address/".$addr."/";
-    /* reserve explorer	(uncomment to enable)
-    $url_explorer['0'] = "https://insight.garli.co.in/insight-grlc-api/addr/".$addr."/?noTxList=1";
-    */
-    $explorer['0'] = json_decode(@file_get_contents($url_explorer['0']), 1);
-    $explorer['1'] = json_decode(@file_get_contents($url_explorer['1']), 1);
+    /* default explorers */
+    $url_explorer = array(
+        "https://explorer.grlc.eu/addr.php?&api=1&op=balance&a=".rawurlencode($addr),
+        "https://api.freshgrlc.net/blockchain/grlc/address/".rawurlencode($addr)."/"
+    );
+
+    $context = stream_context_create(array(
+        'http' => array(
+            'timeout' => 6,
+            'ignore_errors' => true,
+            'user_agent' => 'grlcpay/1.2'
+        ),
+        'ssl' => array(
+            'verify_peer' => true,
+            'verify_peer_name' => true
+        )
+    ));
+
+    $explorer = array();
+
+    foreach ($url_explorer as $i => $url)
+    {
+        $raw = @file_get_contents($url, false, $context);
+        $decoded = ($raw !== false) ? json_decode($raw, true) : null;
+        $explorer[$i] = is_array($decoded) ? $decoded : array();
+    }
+
     return $explorer;
 }
 
 function check_addr_balance ($addr, $explorer, $amount=0, $option=1)
 {
     if ($addr == '') {return false;}
-    $check['0'] = (float)$explorer['0']['balance'];
-    $check['1'] = (float)$explorer['1']['balance'];
+    $check['0'] = (isset($explorer['0']['balance']) && is_numeric($explorer['0']['balance'])) ? (float)$explorer['0']['balance'] : null;
+    $check['1'] = (isset($explorer['1']['balance']) && is_numeric($explorer['1']['balance'])) ? (float)$explorer['1']['balance'] : null;
     switch ($option)
     {
       case "1":
-       return (($check['0'] >= $amount OR $check['1'] >= $amount) AND $amount != 0) ? true : false;
+       return ((($check['0'] !== null && $check['0'] >= $amount) OR ($check['1'] !== null && $check['1'] >= $amount)) AND $amount > 0) ? true : false;
       break;
       case "2":
-       return ($check['0'] == $amount OR $check['1'] == $amount) ? true : false;
+       return (($check['0'] !== null && $check['0'] == $amount) OR ($check['1'] !== null && $check['1'] == $amount)) ? true : false;
       break;
       default: return false;
     }    
@@ -519,18 +582,24 @@ function pear_mail ($subject, $body, $to, $from, $host, $port, $auth, $user, $pa
 
 ************************************/
 
-switch ($_REQUEST['pid'])
+$pid = (isset($_REQUEST['pid']) && is_string($_REQUEST['pid'])) ? $_REQUEST['pid'] : '';
+
+switch ($pid)
 {
 
    case "add":
 
-    if (!is_dir($data_dir)) {mkdir($data_dir, 0777);}
-		
-    $_POST['amount'] = str_replace(",", ".", $_POST['amount']);
-    $amount = (preg_match("/^([0-9\.]{1,100})$/i", trim($_POST['amount']))) ? $_POST['amount'] : '';
-    $addr = (preg_match("/^([a-zA-Z0-9]{30,100})$/i", trim($_POST['addr']))) ? $_POST['addr'] : '';
-    $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
-    $code = filter_var(trim($_POST['code']), FILTER_SANITIZE_STRING); 
+    if (!ensure_data_dir($data_dir)) {html_error('Data directory is not writable.');}
+
+    $post_amount = (isset($_POST['amount']) && is_string($_POST['amount'])) ? str_replace(",", ".", trim($_POST['amount'])) : '';
+    $post_addr = (isset($_POST['addr']) && is_string($_POST['addr'])) ? trim($_POST['addr']) : '';
+    $post_email = (isset($_POST['email']) && is_string($_POST['email'])) ? trim($_POST['email']) : '';
+    $post_code = (isset($_POST['code']) && is_string($_POST['code'])) ? trim($_POST['code']) : '';
+
+    $amount = (preg_match("/^[0-9]+(?:\.[0-9]{1,8})?$/", $post_amount) && (float)$post_amount > 0) ? $post_amount : '';
+    $addr = (preg_match("/^[a-zA-Z0-9]{30,100}$/", $post_addr)) ? $post_addr : '';
+    $email = ($post_email === '' || filter_var($post_email, FILTER_VALIDATE_EMAIL) !== false) ? $post_email : '';
+    $code = (strlen($post_code) > 0 && strlen($post_code) <= 2048) ? $post_code : '';
 
     $explorer = explorers_get($addr);
 
@@ -543,12 +612,13 @@ switch ($_REQUEST['pid'])
 
     if ($amount == '' OR $addr == '' OR !$check_addr OR $code == '') {echo html_header('Fill out all fields correctly').html_form($error).html_footer();exit;}
 
-    $aurl_hasz = 'a='.$amount.'&addr='.$addr.'&mail='.$email.'&code='.$code;
+    $aurl_hasz = http_build_query(array('a' => $amount, 'addr' => $addr, 'mail' => $email, 'code' => $code), '', '&', PHP_QUERY_RFC3986);
     $encrypt_link = link_encrypt($aurl_hasz, $encryption_key, $link_validity_in_seconds);
 
-    $uniqid = md5(uniqid('', true).microtime());
+    $uniqid = secure_random_id();
+    if ($encrypt_link === false || $uniqid === false) {html_error('Unable to securely create the payment link.');}
 
-    if ($f = fopen($data_dir."/".$uniqid, wb))
+    if ($f = fopen($data_dir."/".$uniqid, 'xb'))
     {
         fwrite($f, $encrypt_link);
         fclose($f);
@@ -558,19 +628,26 @@ switch ($_REQUEST['pid'])
     }
      else
     {
-        html_error('Error write metafile (create dir "'.$data_dir.'" and set write permissions for the data directory to 777)'); 
+        html_error('Unable to create payment metadata file in "'.h($data_dir).'".'); 
     }
 
    break;
 
    case "api_get":
 
-    if (!is_dir($data_dir)) {mkdir($data_dir, 0777);}
+    header('Content-Type: application/json; charset=utf-8');
 
-    $amount = (preg_match("/^([0-9\.]{1,100})$/i", trim($_GET['amount']))) ? $_GET['amount'] : '';
-    $addr = (preg_match("/^([a-zA-Z0-9]{30,100})$/i", trim($_GET['addr']))) ? $_GET['addr'] : '';
-    $email = filter_var(trim($_GET['email']), FILTER_SANITIZE_EMAIL);
-    $code = filter_var(trim($_GET['code']), FILTER_SANITIZE_STRING); 
+    if (!ensure_data_dir($data_dir)) {$json = array('error' => 'data_directory_not_writable'); echo json_encode($json); exit;}
+
+    $get_amount = (isset($_GET['amount']) && is_string($_GET['amount'])) ? str_replace(",", ".", trim($_GET['amount'])) : '';
+    $get_addr = (isset($_GET['addr']) && is_string($_GET['addr'])) ? trim($_GET['addr']) : '';
+    $get_email = (isset($_GET['email']) && is_string($_GET['email'])) ? trim($_GET['email']) : '';
+    $get_code = (isset($_GET['code']) && is_string($_GET['code'])) ? trim($_GET['code']) : '';
+
+    $amount = (preg_match("/^[0-9]+(?:\.[0-9]{1,8})?$/", $get_amount) && (float)$get_amount > 0) ? $get_amount : '';
+    $addr = (preg_match("/^[a-zA-Z0-9]{30,100}$/", $get_addr)) ? $get_addr : '';
+    $email = ($get_email === '' || filter_var($get_email, FILTER_VALIDATE_EMAIL) !== false) ? $get_email : '';
+    $code = (strlen($get_code) > 0 && strlen($get_code) <= 2048) ? $get_code : '';
 
     $explorer = explorers_get($addr);
 
@@ -583,12 +660,13 @@ switch ($_REQUEST['pid'])
 
     if ($amount == '' OR $addr == '' OR !$check_addr OR $code == '') {$json['error'] = 1; echo json_encode($json); exit;}
 
-    $aurl_hasz = 'a='.$amount.'&addr='.$addr.'&mail='.$email.'&code='.$code;
+    $aurl_hasz = http_build_query(array('a' => $amount, 'addr' => $addr, 'mail' => $email, 'code' => $code), '', '&', PHP_QUERY_RFC3986);
     $encrypt_link = link_encrypt($aurl_hasz, $encryption_key, $link_validity_in_seconds);
 
-    $uniqid = md5(uniqid('', true).microtime());
+    $uniqid = secure_random_id();
+    if ($encrypt_link === false || $uniqid === false) {$json = array('error' => 'secure_link_generation_failed'); echo json_encode($json); exit;}
 
-    if ($f = fopen($data_dir."/".$uniqid, wb))
+    if ($f = fopen($data_dir."/".$uniqid, 'xb'))
     {
         fwrite($f, $encrypt_link);
         fclose($f);
@@ -596,19 +674,41 @@ switch ($_REQUEST['pid'])
     }
      else
     {
-        $json['error'] = 'set write permissions for the data directory to 777'; echo json_encode($json); exit;
+        $json['error'] = 'payment_metadata_write_failed'; echo json_encode($json); exit;
     }
 
    break;
 
    case "load":
 
-    $encrypt_link = (preg_match("/^[a-z0-9]{32}$/i", $_GET['id'])) ? $_GET['id'] : 'error'; 
-    $decrypt_link = link_decrypt(trim(file_get_contents($data_dir."/".$encrypt_link)), $encryption_key);
-    $array_url = $decrypt_link['data'];
-    $get_var = load_var_decrypt($array_url);
+    $load_id = (isset($_GET['id']) && is_string($_GET['id'])) ? $_GET['id'] : '';
+    $encrypt_link = (preg_match("/^[a-z0-9]{32}$/i", $load_id)) ? $load_id : '';
+    $payment_file = ($encrypt_link !== '') ? $data_dir."/".$encrypt_link : '';
 
-    if ($decrypt_link['time'] > time())
+    if ($payment_file === '' || !is_file($payment_file) || !is_readable($payment_file))
+    {
+        echo html_header('Payment link not found').html_load_error('Payment link not found or already used.').html_footer();
+        exit;
+    }
+
+    $encrypted_payload = file_get_contents($payment_file);
+    $decrypt_link = ($encrypted_payload !== false) ? link_decrypt(trim($encrypted_payload), $encryption_key) : false;
+
+    if (!is_array($decrypt_link) || !isset($decrypt_link['time'], $decrypt_link['data']))
+    {
+        echo html_header('Invalid payment link').html_load_error('Invalid payment link.').html_footer();
+        exit;
+    }
+
+    $get_var = load_var_decrypt($decrypt_link['data']);
+
+    if (!isset($get_var['addr'], $get_var['a'], $get_var['code'], $get_var['mail']))
+    {
+        echo html_header('Invalid payment link').html_load_error('Invalid payment metadata.').html_footer();
+        exit;
+    }
+
+    if ((int)$decrypt_link['time'] > time())
     { 
         $explorer = explorers_get($get_var['addr']);
         if (check_addr_balance($get_var['addr'], $explorer, $get_var['a']))
@@ -623,7 +723,7 @@ switch ($_REQUEST['pid'])
                     pear_mail ('Payment confirmed!', "Hello\r\nNew payment has been received to the address: ".$get_var['addr']."\r\nAmount: ".$get_var['a']."\r\nGreetings", $get_var['mail'], $your_mail_name, $host_smtp, $port_smtp, $auth, $user, $pass);
                 }
             }
-            unlink($data_dir."/".$encrypt_link);
+            @unlink($payment_file);
         }
          else
         {
