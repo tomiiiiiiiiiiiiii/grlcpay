@@ -1039,6 +1039,16 @@ function html_load_pay ($amount, $addr, $payment_id)
 
        function checkPayment(){
          if(checking){return;}
+
+         if(typeof window.fetch !== "function"){
+           setText("Status: automatic checks unavailable");
+           if(checkButton){
+             checkButton.textContent="Reload";
+             checkButton.onclick=function(){window.location.reload();};
+           }
+           return;
+         }
+
          checking=true;
          setText("Status: checking blockchain...");
          if(checkButton){checkButton.disabled=true;}
