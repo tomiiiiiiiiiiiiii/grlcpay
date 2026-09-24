@@ -13,6 +13,11 @@ rm -rf "$APP_DIR"
 mkdir -p "$APP_DIR/data"
 cp index.php "$APP_DIR/index.php"
 
+cat > "$APP_DIR/config.php" <<'PHP'
+<?php
+$encryption_key = '0123456789abcdef0123456789abcdef';
+PHP
+
 # Patch only the temporary test copy. Production source remains unchanged.
 python3 - <<'PY'
 from pathlib import Path
@@ -30,7 +35,7 @@ echo "0" > "$BALANCE_FILE"
 GRLCPAY_MOCK_BALANCE_FILE="$BALANCE_FILE" php -S 127.0.0.1:18081 .github/tests/mock-explorer.php >"$EXPLORER_LOG" 2>&1 &
 EXPLORER_PID=$!
 
-GRLCPAY_ENCRYPTION_KEY="0123456789abcdef0123456789abcdef" php -S 127.0.0.1:18080 -t "$APP_DIR" >"$APP_LOG" 2>&1 &
+php -S 127.0.0.1:18080 -t "$APP_DIR" >"$APP_LOG" 2>&1 &
 APP_PID=$!
 
 cleanup() {
