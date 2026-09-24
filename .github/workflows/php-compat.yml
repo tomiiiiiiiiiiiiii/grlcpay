@@ -72,9 +72,10 @@ jobs:
               exit(1);
           }
 
-          $last = substr($encrypted, -1);
-          $replacement = ($last === 'A') ? 'B' : 'A';
-          $tampered = substr($encrypted, 0, -1) . $replacement;
+          $tamper_pos = 20;
+          $original_char = substr($encrypted, $tamper_pos, 1);
+          $replacement = ($original_char === 'A') ? 'B' : 'A';
+          $tampered = substr($encrypted, 0, $tamper_pos) . $replacement . substr($encrypted, $tamper_pos + 1);
           if (link_decrypt($tampered, $key) !== false) {
               fwrite(STDERR, "tamper detection failed\n");
               exit(1);
