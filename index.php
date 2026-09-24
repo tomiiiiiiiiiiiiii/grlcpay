@@ -30,11 +30,17 @@
  Config start
 ************************************/
 
-/* !!! set random secret password for encrypted links !!! */
-$default_encryption_key = "{your_random_password_example_jgsdf78673476dr%Resfcd}";
-$env_encryption_key = getenv("GRLCPAY_ENCRYPTION_KEY");
-$encryption_key = ($env_encryption_key !== false && strlen($env_encryption_key) >= 32) ? $env_encryption_key : $default_encryption_key;
-$encryption_key_is_default = hash_equals($default_encryption_key, $encryption_key);
+/* Private encryption key lives in config.php, which is not committed to Git. */
+$config_file = __DIR__ . '/config.php';
+$encryption_key = '';
+
+if (is_file($config_file))
+{
+    require $config_file;
+}
+
+$encryption_key = (isset($encryption_key) && is_string($encryption_key)) ? trim($encryption_key) : '';
+$encryption_key_is_configured = (strlen($encryption_key) >= 32);
 
 $data_dir = "./data"; /* keep this directory non-public and writable by the PHP user */
 $debug_mode = false;
@@ -397,6 +403,74 @@ h1 {
   height: 8px;
   border-radius: 50%;
   background: currentColor;
+}
+
+.payment-status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.payment-status-row .status {
+  margin: 0;
+}
+
+.status-check {
+  padding: 7px 10px;
+  border: 1px solid #e1e5da;
+  border-radius: 999px;
+  background: #f8faf5;
+  color: #657252;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.status-check:hover {
+  background: #f0f4ea;
+}
+
+.expiry-card {
+  margin: 0 0 22px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #e6e9e1;
+  border-radius: 13px;
+  background: #fafbf8;
+}
+
+.expiry-copy {
+  min-width: 0;
+}
+
+.expiry-label {
+  margin: 0 0 3px;
+  color: #858b80;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.expiry-time {
+  margin: 0;
+  color: #3d4438;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.expiry-countdown {
+  flex: 0 0 auto;
+  color: #596b3d;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .qr-wrap {
@@ -934,9 +1008,13 @@ function html_load_error ($html)
    </main>';
 }
 
-function html_load_pay ($amount, $addr)
+function html_load_pay ($amount, $addr, $payment_id, $expires_at)
 {
-   global $made_in_grlc;
+   global $made_in_grlc, $domain_name;
+
+   $expires_at = (int)$expires_at;
+   $remaining_seconds = max(0, $expires_at - time());
+   $status_url = $domain_name.'?pid=status&id='.rawurlencode($payment_id);
 
    return '<main class="app-shell">
    <section class="card">
@@ -949,7 +1027,18 @@ function html_load_pay ($amount, $addr)
        <span class="brand-badge">Open source · self-hosted</span>
      </div>
 
-     <div class="status waiting"><span class="status-dot"></span>Status: waiting for payment</div>
+     <div class="payment-status-row">
+       <div class="status waiting" id="payment-status" aria-live="polite"><span class="status-dot"></span><span id="payment-status-text">Status: waiting for payment</span></div>
+       <button class="status-check" id="check-payment-now" type="button">Check now</button>
+     </div>
+
+     <div class="expiry-card">
+       <div class="expiry-copy">
+         <p class="expiry-label">Payment link expires</p>
+         <p class="expiry-time" id="expiry-time" data-expires-at="'.h($expires_at).'">Loading expiry time...</p>
+       </div>
+       <div class="expiry-countdown" id="expiry-countdown" aria-live="polite">Loading...</div>
+     </div>
 
      <div class="hero">
        <p class="data-label">Exact amount</p>
@@ -978,6 +1067,145 @@ function html_load_pay ($amount, $addr)
 
      <div class="divider"></div>
      <div class="notice">Keep this page open until the payment is confirmed. The secret is released only after the required balance is detected.</div>
+
+     <noscript><p class="form-hint">JavaScript is disabled. Reload this page manually to check the payment status.</p></noscript>
+
+     <script>
+     (function(){
+       var statusUrl='.json_encode($status_url).';
+       var statusText=document.getElementById("payment-status-text");
+       var checkButton=document.getElementById("check-payment-now");
+       var expiryTime=document.getElementById("expiry-time");
+       var expiryCountdown=document.getElementById("expiry-countdown");
+       var expiresAt='.json_encode($expires_at).';
+       var remainingSeconds='.json_encode($remaining_seconds).';
+       var timer=null;
+       var countdownTimer=null;
+       var checking=false;
+
+       function schedule(delay){
+         if(timer){window.clearTimeout(timer);}
+         timer=window.setTimeout(checkPayment, delay);
+       }
+
+       function setText(text){
+         if(statusText){statusText.textContent=text;}
+       }
+
+       function pad(value){
+         value=parseInt(value,10);
+         return value < 10 ? "0"+value : String(value);
+       }
+
+       function formatRemaining(seconds){
+         seconds=Math.max(0, parseInt(seconds,10) || 0);
+         var days=Math.floor(seconds/86400);
+         seconds=seconds%86400;
+         var hours=Math.floor(seconds/3600);
+         seconds=seconds%3600;
+         var minutes=Math.floor(seconds/60);
+         var secs=seconds%60;
+
+         if(days > 0){
+           return days+"d "+pad(hours)+":"+pad(minutes)+":"+pad(secs);
+         }
+         return pad(hours)+":"+pad(minutes)+":"+pad(secs);
+       }
+
+       function renderExpiry(){
+         if(expiryTime && expiresAt){
+           var date=new Date(expiresAt*1000);
+           expiryTime.textContent=date.toLocaleString();
+         }
+
+         if(expiryCountdown){
+           expiryCountdown.textContent=remainingSeconds > 0
+             ? "Remaining: "+formatRemaining(remainingSeconds)
+             : "Expired";
+         }
+       }
+
+       function startCountdown(){
+         renderExpiry();
+         if(countdownTimer){window.clearInterval(countdownTimer);}
+         countdownTimer=window.setInterval(function(){
+           if(remainingSeconds > 0){
+             remainingSeconds--;
+             renderExpiry();
+           } else {
+             renderExpiry();
+             window.clearInterval(countdownTimer);
+             checkPayment();
+           }
+         },1000);
+       }
+
+       function checkPayment(){
+         if(checking){return;}
+
+         if(typeof window.fetch !== "function"){
+           setText("Status: automatic checks unavailable");
+           if(checkButton){
+             checkButton.textContent="Reload";
+             checkButton.onclick=function(){window.location.reload();};
+           }
+           return;
+         }
+
+         checking=true;
+         setText("Status: checking blockchain...");
+         if(checkButton){checkButton.disabled=true;}
+
+         fetch(statusUrl, {
+           method: "GET",
+           cache: "no-store",
+           credentials: "same-origin",
+           headers: {"Accept": "application/json"}
+         })
+         .then(function(response){
+           if(!response.ok){throw new Error("status_request_failed");}
+           return response.json();
+         })
+         .then(function(data){
+           checking=false;
+           if(checkButton){checkButton.disabled=false;}
+
+           if(data && typeof data.expires_at !== "undefined"){
+             expiresAt=parseInt(data.expires_at,10) || expiresAt;
+           }
+           if(data && typeof data.remaining_seconds !== "undefined"){
+             remainingSeconds=Math.max(0, parseInt(data.remaining_seconds,10) || 0);
+             renderExpiry();
+           }
+
+           if(data && (data.status === "paid" || data.status === "expired" || data.status === "gone")){
+             setText(data.status === "paid" ? "Status: payment detected" : "Status: updating...");
+             window.location.reload();
+             return;
+           }
+
+           setText("Status: waiting for payment");
+           schedule(8000);
+         })
+         .catch(function(){
+           checking=false;
+           if(checkButton){checkButton.disabled=false;}
+           setText("Status: waiting for payment");
+           schedule(12000);
+         });
+       }
+
+       if(checkButton){
+         checkButton.addEventListener("click", function(){
+           if(timer){window.clearTimeout(timer);}
+           checkPayment();
+         });
+       }
+
+       startCountdown();
+       schedule(2500);
+     }());
+     </script>
    </section>
    '.$made_in_grlc.'
    </main>';
@@ -1394,7 +1622,7 @@ switch ($pid)
 
    case "add":
 
-    if ($encryption_key_is_default) {html_error('Configuration error: set GRLCPAY_ENCRYPTION_KEY to a private random value of at least 32 characters before creating payments.');}
+    if (!$encryption_key_is_configured) {html_error('Configuration error: copy config.example.php to config.php and set $encryption_key to a private random value of at least 32 characters.');}
 
     if (!ensure_data_dir($data_dir)) {html_error('Data directory is not writable.');}
 
@@ -1451,7 +1679,7 @@ switch ($pid)
 
     header('Content-Type: application/json; charset=utf-8');
 
-    if ($encryption_key_is_default)
+    if (!$encryption_key_is_configured)
     {
         http_response_code(500);
         echo json_encode(array('error' => 'encryption_key_not_configured'));
@@ -1508,7 +1736,97 @@ switch ($pid)
 
    break;
 
+   case "status":
+
+    header('Content-Type: application/json; charset=utf-8');
+
+    if (!$encryption_key_is_configured)
+    {
+        http_response_code(500);
+        echo json_encode(array('status' => 'error', 'error' => 'encryption_key_not_configured'));
+        exit;
+    }
+
+    $status_id = (isset($_GET['id']) && is_string($_GET['id'])) ? $_GET['id'] : '';
+    $status_id = (preg_match("/^[a-z0-9]{32}$/i", $status_id)) ? $status_id : '';
+    $status_file = ($status_id !== '') ? $data_dir."/".$status_id : '';
+
+    if ($status_file === '' || !is_file($status_file) || !is_readable($status_file))
+    {
+        echo json_encode(array('status' => 'gone'));
+        exit;
+    }
+
+    $status_handle = @fopen($status_file, 'rb');
+    if ($status_handle === false || !flock($status_handle, LOCK_SH))
+    {
+        if (is_resource($status_handle)) { fclose($status_handle); }
+        http_response_code(503);
+        echo json_encode(array('status' => 'error', 'error' => 'payment_temporarily_unavailable'));
+        exit;
+    }
+
+    if (!is_file($status_file))
+    {
+        flock($status_handle, LOCK_UN);
+        fclose($status_handle);
+        echo json_encode(array('status' => 'gone'));
+        exit;
+    }
+
+    $status_payload = stream_get_contents($status_handle);
+    $status_link = ($status_payload !== false) ? link_decrypt(trim($status_payload), $encryption_key) : false;
+
+    if (!is_array($status_link) || !isset($status_link['time'], $status_link['data']))
+    {
+        flock($status_handle, LOCK_UN);
+        fclose($status_handle);
+        http_response_code(500);
+        echo json_encode(array('status' => 'error', 'error' => 'invalid_payment_link'));
+        exit;
+    }
+
+    $status_var = load_var_decrypt($status_link['data']);
+
+    if (!isset($status_var['addr'], $status_var['a']))
+    {
+        flock($status_handle, LOCK_UN);
+        fclose($status_handle);
+        http_response_code(500);
+        echo json_encode(array('status' => 'error', 'error' => 'invalid_payment_metadata'));
+        exit;
+    }
+
+    if ((int)$status_link['time'] <= time())
+    {
+        flock($status_handle, LOCK_UN);
+        fclose($status_handle);
+        echo json_encode(array(
+            'status' => 'expired',
+            'expires_at' => (int)$status_link['time'],
+            'remaining_seconds' => 0
+        ));
+        exit;
+    }
+
+    $status_explorer = explorers_get($status_var['addr']);
+    $status_paid = check_addr_balance($status_var['addr'], $status_explorer, $status_var['a']);
+
+    flock($status_handle, LOCK_UN);
+    fclose($status_handle);
+
+    echo json_encode(array(
+        'status' => $status_paid ? 'paid' : 'waiting',
+        'expires_at' => (int)$status_link['time'],
+        'remaining_seconds' => max(0, (int)$status_link['time'] - time())
+    ));
+    exit;
+
+   break;
+
    case "load":
+
+    if (!$encryption_key_is_configured) {html_error('Configuration error: copy config.example.php to config.php and set $encryption_key to a private random value of at least 32 characters.');}
 
     $load_id = (isset($_GET['id']) && is_string($_GET['id'])) ? $_GET['id'] : '';
     $encrypt_link = (preg_match("/^[a-z0-9]{32}$/i", $load_id)) ? $load_id : '';
@@ -1583,8 +1901,8 @@ switch ($pid)
         {
             flock($payment_handle, LOCK_UN);
             fclose($payment_handle);
-            echo html_header('Waiting for payment...', '<meta http-equiv="refresh" content="40">');
-            echo html_load_pay($get_var['a'], $get_var['addr']);
+            echo html_header('Waiting for payment...');
+            echo html_load_pay($get_var['a'], $get_var['addr'], $load_id, $decrypt_link['time']);
         }
     }
      else

@@ -54,7 +54,6 @@ jobs:
         run: |
           cat > /tmp/live-explorers.php <<'PHP'
           <?php
-          putenv('GRLCPAY_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef');
           $_GET = array();
           $_POST = array();
           $_REQUEST = array();

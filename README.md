@@ -2,7 +2,7 @@
 
 A small, database-free Garlicoin (GRLC) web payment handler written in PHP.
 
-It creates one-time payment links tied to a fresh GRLC address. The payment page checks the configured GRLC explorer for the address balance and releases the configured access code after payment is detected.
+It creates one-time payment links tied to a fresh GRLC address. The payment page checks the configured GRLC explorer for the address balance and releases the configured access code after payment is detected. Payment status is checked in the background with a small JSON polling endpoint, so the checkout page does not need periodic full-page refreshes.
 
 ## Requirements
 
@@ -14,19 +14,19 @@ It creates one-time payment links tied to a fresh GRLC address. The payment page
 
 ## Installation
 
-1. Copy `index.php` and the `data/` directory to your web server.
-2. Keep `data/` blocked from direct web access. The included `.htaccess` does this on Apache.
-3. Make `data/` writable by the PHP/web-server user. Do **not** use world-writable `0777` permissions unless your hosting environment leaves no safer option.
-4. Configure `$domain_name`.
-5. Set a long, random encryption key. New payment creation is refused while the public placeholder key is still configured.
+1. Copy `index.php`, `config.example.php` and the `data/` directory to your web server.
+2. Copy `config.example.php` to `config.php`.
+3. Generate a private encryption key, for example with `openssl rand -hex 32`, and paste it into `config.php`:
+   ```php
+   <?php
+   $encryption_key = 'PASTE_YOUR_RANDOM_KEY_HERE';
+   ```
+4. Keep `config.php` private. It is listed in `.gitignore` and must never be committed or shared.
+5. Keep `data/` blocked from direct web access. The included `.htaccess` does this on Apache.
+6. Make `data/` writable by the PHP/web-server user. Do **not** use world-writable `0777` permissions unless your hosting environment leaves no safer option.
+7. Configure `$domain_name` in `index.php` if needed.
 
-The recommended way to provide the encryption key is through the environment:
-
-```
-GRLCPAY_ENCRYPTION_KEY="replace-with-a-long-random-secret"
-```
-
-The built-in placeholder key is only a fallback for compatibility and must be changed before production use.
+Payment creation and existing payment-link decryption are refused until `config.php` contains an encryption key of at least 32 characters.
 
 ## PHP 5.6 compatibility
 
@@ -43,6 +43,7 @@ The current code intentionally avoids PHP 7-only syntax. On PHP 5.6, secure rand
 - A fresh address is accepted only when the configured explorer reports the expected empty balance.
 - Input and HTML output are validated/escaped.
 - The `data/` directory must not be publicly readable.
+- Keep `config.php` private and never commit it. Losing or changing its encryption key makes existing encrypted payment files unreadable.
 - Use HTTPS.
 - Explorer availability is external to this project; payment verification depends on the configured explorer returning valid balance data.
 
