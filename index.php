@@ -430,8 +430,9 @@ function html_api_code ()
           '<a href="?start"><img class="mb-4" src="https://grlc.eu/garlicoin.png" alt="" width="72" height="72"></a>'.
           '<h1 class="h3 mb-3 font-weight-normal">Grlc payment address API</h1>'.
           '</div>'.
-          '<p>Request GET: '.h($domain_name).'?pid=api_get&amp;amount={price}&amp;addr={grlc_address}&amp;email={your_email_optional}&amp;code={content_displayed_after_purchase}</p>'.
-          '<p><code>response json {link_id => "HASZLINK"} or json {error => 1} if error</code></p>'.
+          '<p>Recommended API: POST to '.h($domain_name).' with pid=api_create and fields amount, addr, email and code in the request body.</p>'.
+          '<p>Legacy GET pid=api_get remains available for backward compatibility; avoid putting secrets in URLs.</p>'.
+          '<p><code>response json {link_id => "HASHLINK"} or {error => ...}</code></p>'.
           '</div>'.
           $made_in_grlc.
           '</form>';
@@ -759,15 +760,25 @@ switch ($pid)
    break;
 
    case "api_get":
+   case "api_create":
 
     header('Content-Type: application/json; charset=utf-8');
 
+    if ($encryption_key_is_default)
+    {
+        http_response_code(500);
+        echo json_encode(array('error' => 'encryption_key_not_configured'));
+        exit;
+    }
+
+    $api_input = (isset($_SERVER['REQUEST_METHOD']) && $_SERVER['REQUEST_METHOD'] === 'POST') ? $_POST : $_GET;
+
     if (!ensure_data_dir($data_dir)) {$json = array('error' => 'data_directory_not_writable'); echo json_encode($json); exit;}
 
-    $get_amount = (isset($_GET['amount']) && is_string($_GET['amount'])) ? str_replace(",", ".", trim($_GET['amount'])) : '';
-    $get_addr = (isset($_GET['addr']) && is_string($_GET['addr'])) ? trim($_GET['addr']) : '';
-    $get_email = (isset($_GET['email']) && is_string($_GET['email'])) ? trim($_GET['email']) : '';
-    $get_code = (isset($_GET['code']) && is_string($_GET['code'])) ? trim($_GET['code']) : '';
+    $get_amount = (isset($api_input['amount']) && is_string($api_input['amount'])) ? str_replace(",", ".", trim($api_input['amount'])) : '';
+    $get_addr = (isset($api_input['addr']) && is_string($api_input['addr'])) ? trim($api_input['addr']) : '';
+    $get_email = (isset($api_input['email']) && is_string($api_input['email'])) ? trim($api_input['email']) : '';
+    $get_code = (isset($api_input['code']) && is_string($api_input['code'])) ? trim($api_input['code']) : '';
 
     $amount = (preg_match("/^[0-9]+(?:\.[0-9]{1,8})?$/", $get_amount) && (float)$get_amount > 0) ? $get_amount : '';
     $addr = (preg_match("/^[a-zA-Z0-9]{30,100}$/", $get_addr)) ? $get_addr : '';
