@@ -433,6 +433,46 @@ h1 {
   background: #f0f4ea;
 }
 
+.expiry-card {
+  margin: 0 0 22px;
+  padding: 13px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid #e6e9e1;
+  border-radius: 13px;
+  background: #fafbf8;
+}
+
+.expiry-copy {
+  min-width: 0;
+}
+
+.expiry-label {
+  margin: 0 0 3px;
+  color: #858b80;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.expiry-time {
+  margin: 0;
+  color: #3d4438;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.expiry-countdown {
+  flex: 0 0 auto;
+  color: #596b3d;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .qr-wrap {
   display: flex;
   justify-content: center;
@@ -968,10 +1008,12 @@ function html_load_error ($html)
    </main>';
 }
 
-function html_load_pay ($amount, $addr, $payment_id)
+function html_load_pay ($amount, $addr, $payment_id, $expires_at)
 {
    global $made_in_grlc, $domain_name;
 
+   $expires_at = (int)$expires_at;
+   $remaining_seconds = max(0, $expires_at - time());
    $status_url = $domain_name.'?pid=status&id='.rawurlencode($payment_id);
 
    return '<main class="app-shell">
@@ -988,6 +1030,14 @@ function html_load_pay ($amount, $addr, $payment_id)
      <div class="payment-status-row">
        <div class="status waiting" id="payment-status" aria-live="polite"><span class="status-dot"></span><span id="payment-status-text">Status: waiting for payment</span></div>
        <button class="status-check" id="check-payment-now" type="button">Check now</button>
+     </div>
+
+     <div class="expiry-card">
+       <div class="expiry-copy">
+         <p class="expiry-label">Payment link expires</p>
+         <p class="expiry-time" id="expiry-time" data-expires-at="'.h($expires_at).'">Loading expiry time...</p>
+       </div>
+       <div class="expiry-countdown" id="expiry-countdown" aria-live="polite">Loading...</div>
      </div>
 
      <div class="hero">
@@ -1025,7 +1075,12 @@ function html_load_pay ($amount, $addr, $payment_id)
        var statusUrl='.json_encode($status_url).';
        var statusText=document.getElementById("payment-status-text");
        var checkButton=document.getElementById("check-payment-now");
+       var expiryTime=document.getElementById("expiry-time");
+       var expiryCountdown=document.getElementById("expiry-countdown");
+       var expiresAt='.json_encode($expires_at).';
+       var remainingSeconds='.json_encode($remaining_seconds).';
        var timer=null;
+       var countdownTimer=null;
        var checking=false;
 
        function schedule(delay){
@@ -1035,6 +1090,54 @@ function html_load_pay ($amount, $addr, $payment_id)
 
        function setText(text){
          if(statusText){statusText.textContent=text;}
+       }
+
+       function pad(value){
+         value=parseInt(value,10);
+         return value < 10 ? "0"+value : String(value);
+       }
+
+       function formatRemaining(seconds){
+         seconds=Math.max(0, parseInt(seconds,10) || 0);
+         var days=Math.floor(seconds/86400);
+         seconds=seconds%86400;
+         var hours=Math.floor(seconds/3600);
+         seconds=seconds%3600;
+         var minutes=Math.floor(seconds/60);
+         var secs=seconds%60;
+
+         if(days > 0){
+           return days+"d "+pad(hours)+":"+pad(minutes)+":"+pad(secs);
+         }
+         return pad(hours)+":"+pad(minutes)+":"+pad(secs);
+       }
+
+       function renderExpiry(){
+         if(expiryTime && expiresAt){
+           var date=new Date(expiresAt*1000);
+           expiryTime.textContent=date.toLocaleString();
+         }
+
+         if(expiryCountdown){
+           expiryCountdown.textContent=remainingSeconds > 0
+             ? "Remaining: "+formatRemaining(remainingSeconds)
+             : "Expired";
+         }
+       }
+
+       function startCountdown(){
+         renderExpiry();
+         if(countdownTimer){window.clearInterval(countdownTimer);}
+         countdownTimer=window.setInterval(function(){
+           if(remainingSeconds > 0){
+             remainingSeconds--;
+             renderExpiry();
+           } else {
+             renderExpiry();
+             window.clearInterval(countdownTimer);
+             checkPayment();
+           }
+         },1000);
        }
 
        function checkPayment(){
@@ -1067,6 +1170,14 @@ function html_load_pay ($amount, $addr, $payment_id)
            checking=false;
            if(checkButton){checkButton.disabled=false;}
 
+           if(data && typeof data.expires_at !== "undefined"){
+             expiresAt=parseInt(data.expires_at,10) || expiresAt;
+           }
+           if(data && typeof data.remaining_seconds !== "undefined"){
+             remainingSeconds=Math.max(0, parseInt(data.remaining_seconds,10) || 0);
+             renderExpiry();
+           }
+
            if(data && (data.status === "paid" || data.status === "expired" || data.status === "gone")){
              setText(data.status === "paid" ? "Status: payment detected" : "Status: updating...");
              window.location.reload();
@@ -1091,6 +1202,7 @@ function html_load_pay ($amount, $addr, $payment_id)
          });
        }
 
+       startCountdown();
        schedule(2500);
      }());
      </script>
@@ -1689,7 +1801,11 @@ switch ($pid)
     {
         flock($status_handle, LOCK_UN);
         fclose($status_handle);
-        echo json_encode(array('status' => 'expired'));
+        echo json_encode(array(
+            'status' => 'expired',
+            'expires_at' => (int)$status_link['time'],
+            'remaining_seconds' => 0
+        ));
         exit;
     }
 
@@ -1699,7 +1815,11 @@ switch ($pid)
     flock($status_handle, LOCK_UN);
     fclose($status_handle);
 
-    echo json_encode(array('status' => $status_paid ? 'paid' : 'waiting'));
+    echo json_encode(array(
+        'status' => $status_paid ? 'paid' : 'waiting',
+        'expires_at' => (int)$status_link['time'],
+        'remaining_seconds' => max(0, (int)$status_link['time'] - time())
+    ));
     exit;
 
    break;
@@ -1782,7 +1902,7 @@ switch ($pid)
             flock($payment_handle, LOCK_UN);
             fclose($payment_handle);
             echo html_header('Waiting for payment...');
-            echo html_load_pay($get_var['a'], $get_var['addr'], $load_id);
+            echo html_load_pay($get_var['a'], $get_var['addr'], $load_id, $decrypt_link['time']);
         }
     }
      else
