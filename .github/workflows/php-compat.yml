@@ -40,9 +40,13 @@ jobs:
       - name: Crypto and runtime smoke test
         shell: bash
         run: |
+          cat > config.php <<'PHP'
+          <?php
+          $encryption_key = '0123456789abcdef0123456789abcdef';
+          PHP
+
           cat > /tmp/grlcpay-smoke.php <<'PHP'
           <?php
-          putenv('GRLCPAY_ENCRYPTION_KEY=0123456789abcdef0123456789abcdef');
           $_GET = array();
           $_POST = array();
           $_REQUEST = array();
@@ -52,7 +56,7 @@ jobs:
           require __DIR__ . '/index.php';
           ob_end_clean();
 
-          $key = '0123456789abcdef0123456789abcdef';
+          $key = $encryption_key;
           $data = 'a=1.25000000&addr=GRLCtestAddress012345678901234567890&mail=&code=hello';
 
           $encrypted = link_encrypt($data, $key, 60);
@@ -93,4 +97,4 @@ jobs:
 
           cp /tmp/grlcpay-smoke.php ./grlcpay-smoke.php
           php grlcpay-smoke.php
-          rm -f grlcpay-smoke.php
+          rm -f grlcpay-smoke.php config.php
