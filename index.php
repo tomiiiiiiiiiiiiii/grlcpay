@@ -33,6 +33,7 @@
 $default_encryption_key = "{your_random_password_example_jgsdf78673476dr%Resfcd}";
 $env_encryption_key = getenv("GRLCPAY_ENCRYPTION_KEY");
 $encryption_key = ($env_encryption_key !== false && strlen($env_encryption_key) >= 32) ? $env_encryption_key : $default_encryption_key;
+$encryption_key_is_default = hash_equals($default_encryption_key, $encryption_key);
 
 $data_dir = "./data"; /* keep this directory non-public and writable by the PHP user */
 $debug_mode = false;
@@ -702,6 +703,8 @@ switch ($pid)
 {
 
    case "add":
+
+    if ($encryption_key_is_default) {html_error('Configuration error: set GRLCPAY_ENCRYPTION_KEY to a private random value of at least 32 characters before creating payments.');}
 
     if (!ensure_data_dir($data_dir)) {html_error('Data directory is not writable.');}
 
