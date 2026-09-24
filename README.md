@@ -2,7 +2,7 @@
 
 A small, database-free Garlicoin (GRLC) web payment handler written in PHP.
 
-It creates one-time payment links tied to a fresh GRLC address. The payment page checks the configured GRLC explorer for the address balance and releases the configured access code after payment is detected.
+It creates one-time payment links tied to a fresh GRLC address. The payment page checks the configured GRLC explorer for the address balance and releases the configured access code after payment is detected. Payment status is checked in the background with a small JSON polling endpoint, so the checkout page does not need periodic full-page refreshes.
 
 ## Requirements
 
